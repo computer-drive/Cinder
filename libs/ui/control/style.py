@@ -24,7 +24,7 @@ class Fore:
 
     @classmethod
     def custom(cls, r: int, g: int, b: int):
-        return f'{_ESC}38;2;{r};{g};{b}'
+        return f'{_ESC}38;2;{r};{g};{b}m'
 
 class Back:
     black = _ESC + '40m' # 黑色背景
@@ -51,7 +51,7 @@ class Back:
 
     @classmethod
     def custom(cls, r: int, g: int, b: int):
-        return f'{_ESC}48;2;{r};{g};{b}'
+        return f'{_ESC}48;2;{r};{g};{b}m'
 
 
 class Style:
