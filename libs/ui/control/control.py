@@ -8,6 +8,7 @@ class Cursor:
     _HIDE_CURSOR = f'{_ESC}?25l'
     _SHOW_CURSOR = f'{_ESC}?25h'
     _CLEAR_SCREEN = f'{_ESC}2J'
+    _CLEAR_TO_EOL = f'{_ESC}K'
 
     @classmethod
     def hide(cls):
@@ -53,8 +54,15 @@ class Cursor:
 
     @classmethod
     def clear(cls):
-        '''清除屏幕'''
+        '''清除屏幕，并将光标移动到屏幕顶部'''
         sys.stdout.write(cls._CLEAR_SCREEN)
+        sys.stdout.write(f'{_ESC}1;1H')
+        sys.stdout.flush()
+
+    @classmethod
+    def clear_to_eol(cls):
+        '''清除文本到行尾'''
+        sys.stdout.write(cls._CLEAR_TO_EOL)
         sys.stdout.flush()
 
 
