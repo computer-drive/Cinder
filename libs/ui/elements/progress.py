@@ -17,7 +17,7 @@ BLOCK_CHAR = "█"
 EMPTY_CHAR = "░"
 
 
-class CircularStatus(Enum):
+class SpinnerStatus(Enum):
     RUNNING = auto()
     FINISHED = auto()
     ERROR = auto()
@@ -32,29 +32,29 @@ class Spinner(Element):
         super().__init__(input, output)
         self.message = message
 
-        self.status = CircularStatus.RUNNING
+        self.status = SpinnerStatus.RUNNING
         self.progress_text = progress_text
 
     def finish(self, message: str | None = None):
-        self.status = CircularStatus.FINISHED
+        self.status = SpinnerStatus.FINISHED
 
         if message is not None:
             self.message = message
 
     def error(self, message: str | None = None):
-        self.status = CircularStatus.ERROR
+        self.status = SpinnerStatus.ERROR
 
     def update(self, message: str):
         self.message = message
 
     def stop(self):
-        self.status = CircularStatus.STOPPED
+        self.status = SpinnerStatus.STOPPED
 
     def render(self):
         i = 0
         while True:
             # print(self.status)
-            if self.status == CircularStatus.RUNNING:
+            if self.status == SpinnerStatus.RUNNING:
                 Cursor.overwrite(f"{self.progress_text[i]} {self.message}")
                 # print(i, len(self.progress_text[i]), )
                 i += 1
@@ -62,17 +62,17 @@ class Spinner(Element):
                 if i >= len(self.progress_text):
                     i = 0
 
-            elif self.status == CircularStatus.FINISHED:
+            elif self.status == SpinnerStatus.FINISHED:
                 Cursor.overwrite(f"\r{FINISHED_CHAR} {self.message}")
                 print()
                 break
 
-            elif self.status == CircularStatus.ERROR:
+            elif self.status == SpinnerStatus.ERROR:
                 Cursor.overwrite(f"\r{ERROR_CHAR} {self.message}")
                 print()
                 break
 
-            elif self.status == CircularStatus.STOPPED:
+            elif self.status == SpinnerStatus.STOPPED:
                 print()
                 break
 
@@ -110,6 +110,8 @@ class ProgressBar(Element):
         self.format = format
         self.progress_length = progress_length
 
+        self.is_running = True
+
     def update(self, current: int, message: str | None = None, total: int | None = None):
         '''
         更新进度条进度
@@ -121,13 +123,16 @@ class ProgressBar(Element):
         if message is not None:
             self.message = message
 
+    def stop(self):
+        self.is_running = False
+
     def render(self):
         # 这是当进度条处于不确定状态时使用的变量
         block_position = 0
         block_length = 10
 
 
-        while True:
+        while self.is_running:
             # 计算进度条长度
             if self.progress_length <= 0:
                 # 获取终端行宽度
@@ -162,7 +167,7 @@ class ProgressBar(Element):
                     block_position = 0
 
             else:
-                current_count = int((self.current / self.total) * progress_length)
+                current_count = min(int((self.current / self.total) * progress_length), progress_length)
                 progress_text = self.block_char * current_count + self.empty_char * (progress_length - current_count)
 
             
@@ -173,7 +178,7 @@ class ProgressBar(Element):
 
             time.sleep(1 / 24)
 
-
+        print()
 
 
         

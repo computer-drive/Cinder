@@ -1,7 +1,7 @@
 from queue import Queue
 from typing import TypeVar
 
-from .elements.base import Element, Line, Overwrite, Input, StopEvent
+from .elements.base import Element, Line, Overwrite, Input, StopEvent, Text
 
 T = TypeVar("T", bound=Element)
 
@@ -14,6 +14,12 @@ class Manager:
         '''输出一行文本'''
         self.q_output.put(
             Line(self.q_input, self.q_output, text)
+        )
+
+    def print(self, text: str):
+        '''输出文本'''
+        self.q_output.put(
+            Text(self.q_input, self.q_output, text)
         )
 
     def overwrite(self, text: str):

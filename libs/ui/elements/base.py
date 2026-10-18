@@ -32,6 +32,19 @@ class Line(Element):
     def render(self):
         print(self.text)
 
+class Text(Element):
+    '''
+    输出文本
+    '''
+
+    def __init__(self, input: Queue[str], output: Queue['Element'], text: str):
+        super().__init__(input, output)
+
+        self.text = text
+
+    def render(self):
+        print(self.text, end="")
+
 class Overwrite(Line):
     r'''
     覆盖输出一行文本（类似\r）
