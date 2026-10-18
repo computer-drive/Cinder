@@ -65,12 +65,12 @@ class Spinner(Element):
                     i = 0
 
             elif self.status == SpinnerStatus.FINISHED:
-                Cursor.overwrite(f"\r{FINISHED_CHAR} {self.message}")
+                Cursor.overwrite(f"{FINISHED_CHAR} {self.message}")
                 print()
                 break
 
             elif self.status == SpinnerStatus.ERROR:
-                Cursor.overwrite(f"\r{ERROR_CHAR} {self.message}")
+                Cursor.overwrite(f"{ERROR_CHAR} {self.message}")
                 print()
                 break
 
@@ -149,7 +149,7 @@ class ProgressBar(Element):
             if self.current == -1:
                 progress_text = ""
 
-                if (self.progress_length - block_position) >= block_length:
+                if (progress_length - block_position) >= block_length:
                     progress_text += self.empty_char * block_position
 
                     progress_text += block_length * self.block_char
@@ -158,7 +158,7 @@ class ProgressBar(Element):
         
                 else:
                     # 进度条超出范围，在前面显示
-                    font_length = block_length - (self.progress_length - block_position)
+                    font_length = block_length - (progress_length - block_position)
 
                     progress_text += self.block_char * font_length
 

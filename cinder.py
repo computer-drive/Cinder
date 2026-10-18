@@ -25,8 +25,8 @@ def main(manager: Manager):
 
     # p.stop()
 
-    choice = manager.add(Choose(*manager.get_queue(), "请选择：", ["选项1", "选项2", "选项3"]))
-    manager.println(choice.get_choice())
+    choice = manager.add(Choose(*manager.get_queue(), "请选择：", ["选项1", "选项2", "选项3"], True))
+    manager.println(str(choice.get_choice()))
 
     manager.stop()
 
