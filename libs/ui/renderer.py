@@ -1,7 +1,7 @@
 import sys
 from queue import Queue
 
-from .elements.base import StopEvent, Element
+from .elements.base import StopEvent, Element, Overwrite, Line
 from .elements.log import LogManager, INFO, _Log
 
 class Renderer:
@@ -13,6 +13,8 @@ class Renderer:
         self.output = output
 
         self.log_manager = LogManager(INFO, "logs")
+
+        self.at_line_start = True
 
     def run(self):
 
@@ -28,8 +30,19 @@ class Renderer:
             elif isinstance(element, _Log):
                 element.log(self.log_manager)
 
+                
+
             else:
+                if type(element) is Line and not self.at_line_start:
+                    print() # 换行
+                    self.at_line_start = True
+
                 element.render()
+
+                if isinstance(element, Overwrite):
+                    self.at_line_start = False
+
+                
 
 
     

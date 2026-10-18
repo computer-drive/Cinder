@@ -1,6 +1,9 @@
 from queue import Queue
+from typing import TypeVar
 
 from .elements.base import Element, Line, Overwrite, Input, StopEvent
+
+T = TypeVar("T", bound=Element)
 
 class Manager:
     def __init__(self, input: Queue[str], output: Queue[Element]):
@@ -30,3 +33,18 @@ class Manager:
     def stop(self):
         '''停止渲染'''
         self.q_output.put(StopEvent(self.q_input, self.q_output))
+
+    def get_queue(self):
+        '''
+        获取输入队列和输出队列
+        '''
+        return self.q_input, self.q_output
+
+    def add(self, el: T) -> T:
+        '''
+        添加元素到渲染队列
+        '''
+        self.q_output.put(el)
+        return el
+
+

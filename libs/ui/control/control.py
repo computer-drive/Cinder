@@ -65,6 +65,15 @@ class Cursor:
         sys.stdout.write(cls._CLEAR_TO_EOL)
         sys.stdout.flush()
 
+    @classmethod
+    def overwrite(cls, text: str):
+        '''覆盖当前行文本（类似\r）'''
+        
+        sys.stdout.write("\r" + text)
+        sys.stdout.write(cls._CLEAR_TO_EOL)
+
+        sys.stdout.flush()
+
 
 
 class Scroll:
