@@ -3,6 +3,8 @@ from enum import Enum, auto
 import shutil
 import time
 
+import wcwidth
+
 from .base import Element
 from ..control.control import Cursor
 
@@ -135,8 +137,12 @@ class ProgressBar(Element):
         while self.is_running:
             # 计算进度条长度
             if self.progress_length <= 0:
+                # 计算除了progres部分的宽度
+                others_length = wcwidth.wcswidth(self.format.format(message=self.message, progress=""))
+
+
                 # 获取终端行宽度
-                progress_length = shutil.get_terminal_size().columns + self.progress_length
+                progress_length = shutil.get_terminal_size().columns - others_length + self.progress_length
             else:
                 progress_length = self.progress_length
 
