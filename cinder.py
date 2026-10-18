@@ -2,30 +2,27 @@ import time
 
 from libs.ui.startup import start_worker
 from libs.ui.manager import Manager
-from libs.ui.elements.progress import Progress, WAVE_CHARS
+from libs.ui.elements.progress import Spinner, WAVE_CHARS, ProgressBar
 
 
 def main(manager: Manager):
     import random
     manager.println("测试文本：hello world")
 
-
+    p = manager.add(ProgressBar(*manager.get_queue(), message="测试进度", current=-1, total=100, progress_length=50))
+    i = 0
     while True:
-        i = 0
-        total = random.randint(50, 500)
-        p = manager.add(Progress(*manager.get_queue(), f"正在下载（0 / {total} MB）", ))
-        while True:
-        
-            i += random.randint(1, 10)
+    
+        i += random.randint(1, 1)
 
-            p.update(f"正在下载（{i} / {total} MB）")
+        p.update(i, f"{i}")
 
-            time.sleep(0.1)
+        time.sleep(0.1)
 
-            if i >= total:
-                break
+        if i >= p.total:
+            break
 
-        p.finish(f"下载完成（{total} MB）")
+    # p.finish(f"下载完成（{i}）")
 
     manager.stop()
 
