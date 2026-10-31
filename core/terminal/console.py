@@ -4,6 +4,7 @@ from threading import Event
 from .elements import Element
 from .elements.base import TextElement, TextType
 from .elements.live import Spinner
+from .elements.prompt import Confirm
 
 
 class Console:
@@ -37,4 +38,11 @@ class Console:
         self.put(spinner)
 
         return spinner
+
+    def confirm(self, prompt: str, default: bool = True) -> bool:
+        el = Confirm(self.input_queue, prompt, default)
+
+        self.put(el)
+
+        return self.input_queue.get() == "1"
         

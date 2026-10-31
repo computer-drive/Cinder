@@ -39,9 +39,9 @@ def renderer_worker(input_queue: Queue[str],
                     sleep(delay)
                 else:
                     next_deadline = now
-        else:
-            # TODO
-            ...
+        elif isinstance(element, PromptElement):
+            input_queue.put(element.run())
+
 
 def start_console_render(fps: int = 24):
     '''
