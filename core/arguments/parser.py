@@ -1,9 +1,10 @@
-from typing import Callable, Annotated
+from typing import Callable, Annotated, cast
 import sys
+from collections import Counter
 
 from ..terminal.console import Console
+from ..terminal.control import Fore, Style
 from ..utils.levenshtein import levenshtein
-
 from .argument import Argument
 
 
@@ -37,8 +38,23 @@ class Parser:
             
             self.sub_commands[p.name] =  p
 
-    def show_help(self, command: str | None = None):
-        ...
+    def show_help(self, command: str | None = None, prefix: str = ""):
+        if command is None:
+            # 根据sys.argv获取运行的程序的名称
+            program_name = sys.argv[0].split("/")[-1]
+
+            self.console.println(
+                f"""{self.help}
+                
+{Style.bold}用法{Style.reset}：{program_name} {prefix} <命令>
+
+{Style.bold}命令{Style.reset}：
+
+"""
+
+            )
+        elif command in self.sub_commands:
+            self.sub_commands[command].show_help()
 
     def run_command(self, command_name: str, args_origin: list[str]):
         '''运行命令'''
@@ -50,7 +66,7 @@ class Parser:
 
         args: list[str | tuple[str, str]] = []
 
-        checked_args: list[str | tuple[str, str]] = []
+        used = set()
 
 
         # 初步解析参数
@@ -78,10 +94,10 @@ class Parser:
             lst_args_spec = list(args_spec.keys())
 
             arg_name = lst_args_spec[i]
-            _ = args_spec[arg_name]
+            all = args_spec[arg_name]
 
-            arg_type: type = _.__origin__
-            arg_spec: Argument = _.__metadata__[0]
+            arg_type: type = all.__origin__
+            arg_spec: Argument = all.__metadata__[0]
             arg_spec_name: tuple[str, ...] = arg_spec.names
 
 
@@ -92,6 +108,8 @@ class Parser:
                 if not isinstance(arg, str):
                     # print(arg, "这个参数不是位置参数")
                     raise ValueError("这个参数不是位置参数")
+
+                used.add(arg)
     
             except IndexError, ValueError:
                 # 读取失败，再尝试用具名参数
@@ -112,33 +130,43 @@ class Parser:
                         return
                     else:
                         arg = possible_args[0][1]
+
+                        used.add(arg)
                         
                         
                 if is_error:
-                    if arg_spec.is_positional():
-                        self.console.error(f"没有提供第 {i + 1} 个位置参数。")
+                    # 判断是否有默认值
+                    if arg_spec.optional[0]:
+                        # 有默认值
+                        args_finally[arg_name] =  arg_spec.optional[1]
+                        continue
+
                     else:
-                        self.console.error(f"没有提供参数 {",".join(arg_spec_name)}。")
-                    return
+                        if arg_spec.is_positional():
+                            self.console.error(f"没有提供第 {i + 1} 个位置参数。")
+                        else:
+                            self.console.error(f"没有提供参数 {",".join(arg_spec_name)}。")
+                        return
 
             try:
-                args_finally[arg_name] = arg_type(arg) # 
+                args_finally[arg_name] = arg_type(arg) # pyright: ignore[reportPossiblyUnboundVariable] #
             except ValueError:
-                self.console.error(f"参数“{arg_name}”需要是 {arg_type.__name__} 类型，无法转换值“{arg}”。")
+                self.console.error(f"参数“{arg_name}”需要是 {arg_type.__name__} 类型，无法转换值“{arg}”。") # pyright: ignore[reportPossiblyUnboundVariable]
                 return
 
-            checked_args.append(args[i])
 
-        # 判断checked_args
-        if len(checked_args) != len(args):
-            self.console.warning(f"参数 {", ".join([i if isinstance(i, str) else f"{i[0]}={i[1]}" for i in args if i not in checked_args])} 未被定义（或使用）。")
+
+
+
+        # 判断used
+        all = ([arg if isinstance(arg, str) else arg[1] for arg in args])
+        used = list(used)
+        # print(all, used)
+        if len(used) != len(all):
+            self.console.warning(f"参数 {", ".join(Counter(all) - Counter(used))} 未被定义（或使用）。")
 
         # 解析完，运行函数
         self.commands[command_name][1](**args_finally)
-
-
-        
-
 
 
 
