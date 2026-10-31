@@ -50,6 +50,8 @@ class Parser:
 
         args: list[str | tuple[str, str]] = []
 
+        checked_args: list[str | tuple[str, str]] = []
+
 
         # 初步解析参数
         has_name_args = False
@@ -124,6 +126,12 @@ class Parser:
             except ValueError:
                 self.console.error(f"参数“{arg_name}”需要是 {arg_type.__name__} 类型，无法转换值“{arg}”。")
                 return
+
+            checked_args.append(args[i])
+
+        # 判断checked_args
+        if len(checked_args) != len(args):
+            self.console.warning(f"参数 {", ".join([i if isinstance(i, str) else f"{i[0]}={i[1]}" for i in args if i not in checked_args])} 未被定义（或使用）。")
 
         # 解析完，运行函数
         self.commands[command_name][1](**args_finally)
