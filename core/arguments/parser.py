@@ -45,18 +45,17 @@ class Parser:
         # print(args_origin)
 
         # 通过类型注解获取这个命令的所有参数
-        args_spec: dict[str, Annotated[type, Argument]] = self.commands[command_name][1].__annotations__
-        args_spec.pop("return")# 由于是Callable，去除可能出现的return键
+        args_spec: dict[str, Annotated[type, Argument]] = dict(self.commands[command_name][1].__annotations__) # 拷贝一下对象
+        args_spec.pop("return", None)# 由于是Callable，去除可能出现的return键
 
         args: list[str | tuple[str, str]] = []
-
 
 
         # 初步解析参数
         has_name_args = False
         for arg in args_origin[1:]:
             if "=" in arg:
-                a_ = arg.split("=")
+                a_ = arg.split("=", 1)
                 args.append((a_[0], a_[1]))
 
                 has_name_args = True
@@ -69,7 +68,7 @@ class Parser:
 
         # print(args)
 
-        # 先初始化最初的finnaly_args
+        # 先初始化最初的finally_args
         args_finally = {}
 
         # 解析参数
