@@ -3,6 +3,7 @@ from threading import Event
 
 from .elements import Element
 from .elements.base import TextElement, TextType
+from .elements.live import Spinner
 
 
 class Console:
@@ -29,4 +30,11 @@ class Console:
     def stop(self):
         self.output_queue.put(None)
         self.stop_event.set()
+
+    def spinner(self, text: str):
+        '''输出一个旋转的加载图标'''
+        spinner = Spinner(self.output_queue, text)
+        self.put(spinner)
+
+        return spinner
         
