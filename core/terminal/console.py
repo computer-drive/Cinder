@@ -5,9 +5,26 @@ from .elements import Element
 from .elements.base import TextElement, TextType
 from .elements.live import Spinner
 from .elements.prompt import Confirm
+from .control import Fore, Style
 
 
 class Console:
+
+    _instance = None
+
+    def __new__(cls, *args, **kwargs):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+
+        return cls._instance
+
+    @classmethod
+    def get_instance(cls):
+        if cls._instance is not None:
+            return cls._instance
+        else:
+            raise ValueError("Console还未被创建过")
+
     def __init__(self, input_queue: Queue[str], output_queue: Queue[Element | None], stop_event: Event):
         self.input_queue = input_queue
         self.output_queue = output_queue
@@ -26,11 +43,21 @@ class Console:
         self.put(TextElement(text, TextType.LINE))
 
     def overwrite(self, text: str):
+        '''输出一些文本并覆盖当前行'''
         self.put(TextElement(text, TextType.OVERWRITE))
 
     def stop(self):
+        '''停止渲染器的运行'''
         self.output_queue.put(None)
         self.stop_event.set()
+
+    def warning(self, text: str):
+        '''输出警告信息'''
+        self.println(f"{Fore.yellow}警告：{text}{Style.reset}")
+
+    def error(self, text: str):
+        self.println(f"{Fore.red}错误：{text}{Style.reset}")
+
 
     def spinner(self, text: str):
         '''输出一个旋转的加载图标'''
