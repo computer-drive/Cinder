@@ -9,6 +9,11 @@ from .element import Element
 class BaseElement(Element):
 
     def draw(self):
+        '''将组件绘制到屏幕上'''
+        raise NotImplementedError
+
+    def get_text(self):
+        '''返回要将组件绘制到屏幕上的文本'''
         raise NotImplementedError
 
 class TextType(Enum):
@@ -30,5 +35,9 @@ class TextElement(BaseElement):
             Cursor.overwrite(self.text)
         else:
             Cursor.print(self.text)
+
+    def get_text(self):
+        return self.text
+
 
     

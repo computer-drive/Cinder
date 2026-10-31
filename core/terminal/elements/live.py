@@ -2,14 +2,16 @@
 这是控制台渲染部分动态组件的部分
 '''
 
-from queue import Queue
+from queue import Queue, Empty
 from enum import Enum, auto
+import sys
 
 from .base import BaseElement
 from .element import Element
 from ..control import Cursor
 
 STOP_SIGNAL = sentinel("STOP_SIGNAL")
+
 
 class LiveElement(Element):
 
@@ -65,6 +67,15 @@ class Spinner(LiveElement):
         self.text = text
 
     def update(self) -> None | STOP_SIGNAL:
+        try:
+            el = self.output_queue.get_nowait()
+        except Empty:
+            pass
+        else:
+            # 有组件时
+            if el is not None and isinstance(el, BaseElement):
+                Cursor.overwrite(el.get_text() + "\n")
+        
         if self.state == SpinnerState.FINISH:
             Cursor.println(f"\r{FINISH_CHAR} {self.text}")
             return STOP_SIGNAL
