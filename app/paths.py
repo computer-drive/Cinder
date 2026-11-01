@@ -55,4 +55,4 @@ class Paths:
         return self
 
         
-paths = Paths.get_paths()
+paths: Paths = Paths.get_paths().ensure()

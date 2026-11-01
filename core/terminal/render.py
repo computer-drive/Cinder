@@ -1,6 +1,7 @@
 from queue import Queue
 from threading import Event, Thread
 from time import perf_counter, sleep
+import sys
 
 from .elements import * 
 
@@ -10,6 +11,9 @@ def renderer_worker(input_queue: Queue[str],
                     stop_event: Event,
                     fps: int = 24,
                     ):
+
+    # 强制关闭光标的应用模式，修复方向键输入问题
+    sys.stdout.write("\x1b[?1l")
 
     period = 1.0 / fps
 

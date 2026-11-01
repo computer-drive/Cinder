@@ -58,13 +58,20 @@ class Spinner(LiveElement):
         self.state = SpinnerState.ERROR
         self.text = text
 
-    def loading1(self, text: str):
+    def loading1(self, text: str | None = None):
         self.state = SpinnerState.LOADING1
-        self.text = text
+        if text is not None:
+            self.text = text
 
-    def loading2(self, text: str):
+    def loading2(self, text: str | None):
         self.state = SpinnerState.LOADING2
-        self.text = text
+        if text is not None:
+            self.text = text
+
+    def loading0(self, text: str | None):
+        self.state = SpinnerState.LOADING
+        if text is not None:
+            self.text = text
 
     def update(self) -> None | STOP_SIGNAL:
         try:
@@ -77,10 +84,11 @@ class Spinner(LiveElement):
                 Cursor.overwrite(el.get_text() + "\n")
         
         if self.state == SpinnerState.FINISH:
-            Cursor.println(f"\r{FINISH_CHAR} {self.text}")
+            Cursor.overwrite(f"\r{FINISH_CHAR} {self.text}\n")
             return STOP_SIGNAL
+        
         elif self.state == SpinnerState.ERROR:
-            Cursor.println(f"\r{ERROR_CHAR} {self.text}")
+            Cursor.overwrite(f"\r{ERROR_CHAR} {self.text}\n")
             return STOP_SIGNAL
         else:
             chars = {

@@ -68,6 +68,10 @@ class Style:
         '''添加下划线，count参数可传入1, 2'''
         return f'{_ESC}{4 if count == 1 else 21}m' # 下划线
 
+    @classmethod
+    def link(cls, text: str, url: str):
+        return f"\033]8;;{url}\033\\{text}\033]8;;\033\\"
+
 
 
 

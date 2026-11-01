@@ -73,6 +73,18 @@ class Cursor:
         sys.stdout.flush()
 
     @classmethod
+    def backup(cls):
+        '''备份当前光标位置'''
+        sys.stdout.write(f'{_ESC}7')
+
+    @classmethod
+    def restore(cls):
+        '''恢复备份的光标位置'''
+        sys.stdout.write(f'{_ESC}8')
+
+
+
+    @classmethod
     def print(cls, text: str):
         sys.stdout.write(text)
 

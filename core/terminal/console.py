@@ -2,9 +2,9 @@ from queue import Queue
 from threading import Event
 
 from .elements import Element
-from .elements.base import TextElement, TextType
+from .elements.base import TextElement, TextType, TitleElement
 from .elements.live import Spinner
-from .elements.prompt import Confirm
+from .elements.prompt import Confirm, Choose
 from .control import Fore, Style
 
 
@@ -30,6 +30,7 @@ class Console:
         self.output_queue = output_queue
         self.stop_event = stop_event
 
+
     def put(self, element: Element):
         '''将一个组件放入输出渲染队列'''
         self.output_queue.put(element)
@@ -46,10 +47,14 @@ class Console:
         '''输出一些文本并覆盖当前行'''
         self.put(TextElement(text, TextType.OVERWRITE))
 
+    def title(self, text: str):
+        '''输出一个标题'''
+        self.put(TitleElement(text))
+
     def stop(self):
         '''停止渲染器的运行'''
         self.output_queue.put(None)
-        self.stop_event.set()
+        # self.stop_event.set() # ! stop_event有问题，先不用它！
 
     def warning(self, text: str):
         '''输出警告信息'''
@@ -72,4 +77,10 @@ class Console:
         self.put(el)
 
         return self.input_queue.get() == "1"
+
+    def choose(self, prompt: str, choices: list[str], default: int = 0, allow_cancel: bool = False) -> str:
+        el = Choose(self.input_queue, prompt, choices, default, allow_cancel)
+        self.put(el)
+
+        return self.input_queue.get()
         

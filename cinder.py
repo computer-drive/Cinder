@@ -1,25 +1,16 @@
 from core.terminal.startup import startup
-import time
+from core.arguments import Parser
 
+lazy from app.commands import parsers
+
+# 启动渲染
 console = startup()
 
-spinner = console.spinner("下载文件...（建立连接）")
+parser = Parser(help="Cinder命令行")
 
+parser.register(*parsers)
 
-for i in range(10):
-    console.println(f"连接重试：{i}")
-    time.sleep(0.1)
+if __name__ == "__main__":
+    parser.run()
 
-
-spinner.loading1("下载文件...（下载中）")
-
-time.sleep(1)
-
-# spinner.loading2("下载文件...（下载中）")
-
-time.sleep(1)
-
-spinner.finish("下载文件...（下载完成）")
-
-
-# console.stop()
+    console.stop()

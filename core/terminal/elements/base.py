@@ -2,8 +2,10 @@
 这是控制台渲染部分的基础组件部分
 '''
 from enum import Enum, auto
+from shutil import get_terminal_size
+import wcwidth
 
-from ..control.control import Cursor
+from ..control import Cursor, Style
 from .element import Element
 
 class BaseElement(Element):
@@ -38,6 +40,24 @@ class TextElement(BaseElement):
 
     def get_text(self):
         return self.text
+
+class TitleElement(BaseElement):
+
+    def __init__(self, text: str):
+        self.text = text
+
+    def draw(self):
+        space_length = (get_terminal_size().columns - wcwidth.wcswidth(self.text))
+
+        left_length, right_length = 0, 0
+        # 判断能否整除于2
+        if space_length % 2 == 0:
+            left_length = right_length = space_length // 2
+        else:
+            left_length = (space_length - 1) // 2
+            right_length = left_length + 1
+
+        Cursor.print("=" * left_length + f"{Style.invert}{self.text}{Style.reset}" + "=" * right_length)
 
 
     
