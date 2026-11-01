@@ -56,3 +56,21 @@ REDIRECT_PAGE_ERROR = '''<!DOCTYPE html>
     </div>
 </body>
 </html>'''
+
+XBOX_LIVE_URL = "https://user.auth.xboxlive.com/user/authenticate"
+
+
+def get_xobx_live_body(refresh_token: str):
+    return  {
+        "Properties": {
+            "AuthMethod": "RPS",
+            "SiteName": "user.auth.xboxlive.com",
+            "RpsTicket": f"d={refresh_token}"   
+        },
+        "RelyingParty": "http://auth.xboxlive.com",
+        "TokenType": "JWT"
+    }
+
+XSTS_URL = "https://xsts.auth.xboxlive.com/xsts/authorize"
+
+MC_TOKEN_URL = "https://api.minecraftservices.com/authentication/login_with_xbox"

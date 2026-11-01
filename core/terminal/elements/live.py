@@ -73,6 +73,7 @@ class Spinner(LiveElement):
         if text is not None:
             self.text = text
 
+
     def update(self) -> None | STOP_SIGNAL:
         try:
             el = self.output_queue.get_nowait()
@@ -82,13 +83,19 @@ class Spinner(LiveElement):
             # 有组件时
             if el is not None and isinstance(el, BaseElement):
                 Cursor.overwrite(el.get_text() + "\n")
+            else:
+                # 如果组件不是 BaseElement 类型，就放回队列，等待后续处理
+                # print("不是BaseElement", repr(el))
+                self.output_queue.put(el)
         
         if self.state == SpinnerState.FINISH:
-            Cursor.overwrite(f"\r{FINISH_CHAR} {self.text}\n")
+            Cursor.overwrite(f"{FINISH_CHAR} {self.text}")
+            Cursor.println("")
             return STOP_SIGNAL
         
         elif self.state == SpinnerState.ERROR:
-            Cursor.overwrite(f"\r{ERROR_CHAR} {self.text}\n")
+            Cursor.overwrite(f"{ERROR_CHAR} {self.text}\n")
+            Cursor.println("")
             return STOP_SIGNAL
         else:
             chars = {
