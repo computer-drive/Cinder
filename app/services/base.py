@@ -16,6 +16,14 @@ class StepFinished:
     data: dict[str, Any] = field(default_factory=dict)
     is_error: bool = False
 
+class TaskError(Exception):
+    def __init__(self, message: str, data: dict[str, Any] | None = None):
+        self.message = message
+        self.data = data
+
+        super().__init__(message)
+
+
 
 Event = Union[StepUpdate, StepFinished]
 

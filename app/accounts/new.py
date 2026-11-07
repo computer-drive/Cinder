@@ -91,7 +91,7 @@ def add_account():
 
                         account_name = console.input("请输入账户名称：", lambda x: x.strip() != "")
 
-                        task.account_name = account_name
+                        task.cinder_name = account_name
 
             elif isinstance(event, StepUpdate):
                 console.println(event.data["message"])

@@ -8,11 +8,8 @@ from pydantic import BaseModel, ValidationError, computed_field, PrivateAttr
 
 lazy from ..database import use_database
 lazy from ..database.model import Accounts
-from .base import Task, StepUpdate, StepFinished
+from .base import Task, StepUpdate, StepFinished, TaskError
 
-
-
-GET_DEVICE_CODE = f"https://login.live.com/oauth20_connect.srf"
 
 class DeviceCodeResponse(BaseModel):
     user_code: str
@@ -50,11 +47,9 @@ class XboxTokenResponse(BaseModel):
 
     DisplayClaims: _DisplayClaims
 
-
 class XboxErrorResponse(BaseModel):
     XErr: int
     Message: str
-
 
 class MCTokenResponse(BaseModel):
     username: str
@@ -73,7 +68,8 @@ class MCProfileResponse(BaseModel):
     name: str
 
 APP_ID = "ba0066a5-1eee-4e44-bf56-5687702e170c"
-    
+
+GET_DEVICE_CODE = f"https://login.live.com/oauth20_connect.srf"
 
 GET_MS_TOKEN = f"https://login.live.com/oauth20_token.srf"
 
@@ -95,11 +91,12 @@ class _New(Task):
         self.mc_access_token :str
         self.mc_expires_at: datetime
 
-        self.account_name: str = ""
+        self.cinder_name: str = "" # 此名称指的是Cinder内部保存账户的名称
 
 
     def run(self):
 
+        # 从环境变量取被覆写的值
         APP_ID_ =  os.environ.get("cinder_override_app_id", None)
 
         if APP_ID_ is not None:
@@ -109,7 +106,7 @@ class _New(Task):
         else:
             APP_ID_ = APP_ID
 
-        
+        # 发送请求获取登录代码
         res_ = requests.post(GET_DEVICE_CODE, data={
             "response_type": "device_code",
             "client_id": APP_ID_,
@@ -118,17 +115,13 @@ class _New(Task):
             "Content-Type": "application/x-www-form-urlencoded"
         }).json()
 
-
+    
         try:
             result = DeviceCodeResponse(**res_)
         except ValidationError as e:
+            raise TaskError(f"登录信息获取失败。{e}")
 
-            yield StepFinished("error", {
-                "message": f"登录信息获取失败。{e}",
-                "data": res_
-            }, True)
-            return
-            
+        # 打开浏览器让用户登录
         webbrowser.open(result.verification_uri)
 
         yield StepFinished("wait_login", {
@@ -138,7 +131,7 @@ class _New(Task):
 
         while True:
             if not result.is_expired:
-
+                # 轮询查询登录状态
                 res_ = requests.post(GET_MS_TOKEN, data={
                     "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
                     "client_id": APP_ID_,
@@ -150,22 +143,14 @@ class _New(Task):
                     break
 
             else:
-                yield StepFinished("error", {
-                    "message": "登录已超时，请重试。",
-                    "data": ""
-                }, True)
-                return 
+                raise TaskError("登录已超时，请重试。")
 
             time.sleep(1)
 
         try:
             result = MSTokenResponse(**res_.json())
-        except ValidationError:
-            yield StepFinished("error", {
-                "message": f"登录信息获取失败。",
-                "data": res_.json()
-            }, True)
-            return
+        except ValidationError as e:
+            raise TaskError(f"登录信息获取失败。{e}")
 
         self.ms_access_token = result.access_token
         self.ms_refresh_token = result.refresh_token
@@ -175,6 +160,7 @@ class _New(Task):
 
         yield StepFinished("getting_xbox")
 
+        # 拿Xbox令牌
         try:
             res_ =  requests.post(GET_XBOX_TOKEN, json={
                 "Properties": {
@@ -192,15 +178,12 @@ class _New(Task):
             result =XboxTokenResponse(**res_)
 
         except ValidationError as e:
-            yield StepFinished("error", {
-                "message": f"登录信息获取失败。{e}",
-                "data": res_
-            }, True)
-            return
+            raise TaskError(f"登录信息获取失败。{e}")
 
-    
+
         yield StepFinished("getting_xsts")
 
+        # 拿XSTS令牌
         res_ = requests.post(GET_XSTS_TOKEN, headers={
             "Content-Type": "application/json",
             "Accept": "application/json"
@@ -237,25 +220,20 @@ class _New(Task):
                     case _:
                         message = "未知错误。"
 
-                yield StepFinished("error", {
-                    "message": message,
-                    "data": f"错误代码：{result.XErr}，{result.Message}"
+                raise TaskError(message, {
+                    "code": result.XErr,
+                    "message": result.Message
                 })
-
-                return
 
             else:
                 result = XboxTokenResponse(**res_.json())
 
         except ValidationError as e:
-            yield StepFinished("error", {
-                "message": f"登录信息获取失败。{e}",
-                "data": res_
-            }, True)
-            return
+            raise TaskError(f"登录信息获取失败。{e}")
 
         yield StepFinished("getting_mc_token")
 
+        # 获取Minecraft令牌
         try:
             res_ = requests.post(GET_MC_ACCESS_TOKEN, json={
                 "identityToken": f"XBL3.0 x={result.DisplayClaims.xui[0].uhs};{result.Token}" 
@@ -267,11 +245,7 @@ class _New(Task):
             result = MCTokenResponse(**res_)
 
         except ValidationError as e:
-            yield StepFinished("error", {
-                "message": f"登录信息获取失败。{e}",
-                "data": res_
-            }, True)
-            return
+            raise TaskError(f"登录信息获取失败。{e}")
 
         else:
             self.mc_expires_at = result.expires_at
@@ -280,32 +254,30 @@ class _New(Task):
         yield StepFinished("getting_profile")
 
         
+        # 获取Minecraft玩家数据
         try:
             res_ = requests.get(GET_MC_PROFILE, headers={
                 "Authorization": f"Bearer {self.mc_access_token}"
             })
 
             if res_.status_code != 200:
+                # 当玩家数据不存在时，返回未购买游戏错误
                 yield StepFinished("unbought_game", is_error=True)
                 return
 
             result = MCProfileResponse(**res_.json())
 
         except ValidationError as e:
-            yield StepFinished("error", {
-                "message": f"登录信息获取失败。{e}",
-                "data": res_
-            }, True)
-            return 
+            raise TaskError(f"登录信息获取失败。{e}")
         else:
 
+            # 这里的用户名是Xbox用户名
             self.username = result.id
 
             yield StepUpdate("username", {
                 "message": f"玩家名：{result.name}"
             })
 
-        
             yield StepFinished("input_account_name")
 
             database = use_database(Accounts)
@@ -313,7 +285,7 @@ class _New(Task):
             with database.atomic():
                 account = Accounts.create(
                     kind="microsoft",
-                    id=self.account_name,
+                    id=self.cinder_name,
                     name=result.name,
                     uuid=result.id,
                     ms_refresh_token=self.ms_refresh_token,
@@ -322,10 +294,11 @@ class _New(Task):
                     mc_access_token=self.mc_access_token,
                     mc_expires_at=self.mc_expires_at,
                 )
+            
+            database.close()
                 
-
             return {
-                "account_name": self.account_name,
+                "account_name": self.cinder_name,
                 "username": result.name
             }
 

@@ -48,8 +48,8 @@ if __name__ == "__main__":
     try:
         parser.run()
 
-        console.stop()
     finally:
+        console.stop()
 
         lock.release()
 
