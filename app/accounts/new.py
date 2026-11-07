@@ -6,7 +6,7 @@ from core.terminal.console import Console
 from core.terminal.control import Fore, Style
 
 from ..services.accounts import AccountsSerivce
-from ..services.base import StepFinished, StepUpdate
+from ..services.base import StepFinished, StepUpdate, TaskError
 
 from .command import accounts
 
@@ -43,17 +43,6 @@ def add_account():
                         step_name = "等待登录..."
 
                         spinner.loading0(f"{step_name}（步骤{step}）")
-
-                    case "error":
-
-                        console.error(f"{event.data["message"]}")
-
-                        if event.data["data"] :
-                            console.error(f"详细信息：{event.data["data"]}")
-
-                        spinner.error("登录失败。")
-
-                        break
 
                     case "getting_xbox":
 
@@ -106,6 +95,13 @@ def add_account():
 
     except KeyboardInterrupt:
         spinner.error("用户取消了登录。")
+
+    except TaskError as e:
+        spinner.error("登录失败。")
+
+        console.error(e.message)
+        if e.data is not None:
+            console.error(str(e.data))
 
     finally:
         

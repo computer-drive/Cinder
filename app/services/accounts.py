@@ -2,6 +2,7 @@ import os
 import webbrowser
 from datetime import datetime, timedelta
 import time
+from typing import Generator
 
 lazy import requests
 from pydantic import BaseModel, ValidationError, computed_field, PrivateAttr
@@ -67,6 +68,7 @@ class MCProfileResponse(BaseModel):
     id: str
     name: str
 
+#region #! 一些常量
 APP_ID = "ba0066a5-1eee-4e44-bf56-5687702e170c"
 
 GET_DEVICE_CODE = f"https://login.live.com/oauth20_connect.srf"
@@ -80,6 +82,7 @@ GET_XSTS_TOKEN = "https://xsts.auth.xboxlive.com/xsts/authorize"
 GET_MC_ACCESS_TOKEN = "https://api.minecraftservices.com/authentication/login_with_xbox"
 
 GET_MC_PROFILE = "https://api.minecraftservices.com/minecraft/profile"
+#endregion
 
 class _New(Task):
 
@@ -94,7 +97,7 @@ class _New(Task):
         self.cinder_name: str = "" # 此名称指的是Cinder内部保存账户的名称
 
 
-    def run(self):
+    def run(self) -> Generator[StepUpdate | StepFinished, None, dict | None]:
 
         # 从环境变量取被覆写的值
         APP_ID_ =  os.environ.get("cinder_override_app_id", None)
@@ -245,7 +248,9 @@ class _New(Task):
             result = MCTokenResponse(**res_)
 
         except ValidationError as e:
-            raise TaskError(f"登录信息获取失败。{e}")
+            raise TaskError(f"登录信息获取失败。{e}", {
+                "data": res_
+            })
 
         else:
             self.mc_expires_at = result.expires_at
@@ -271,16 +276,27 @@ class _New(Task):
             raise TaskError(f"登录信息获取失败。{e}")
         else:
 
-            # 这里的用户名是Xbox用户名
-            self.username = result.id
 
             yield StepUpdate("username", {
                 "message": f"玩家名：{result.name}"
             })
 
-            yield StepFinished("input_account_name")
-
             database = use_database(Accounts)
+
+            while True:
+                yield StepFinished("input_account_name")
+
+                self.cinder_name = self.cinder_name.strip()
+                
+                if self.cinder_name != "":
+                    if Accounts.select().where(Accounts.id == self.cinder_name).exists():
+                        yield StepUpdate("account_name", {
+                            "message": "账号名已存在。"
+                        })
+                        continue
+                    else:
+                        break
+
 
             with database.atomic():
                 account = Accounts.create(

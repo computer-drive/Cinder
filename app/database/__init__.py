@@ -4,15 +4,19 @@ lazy from ..paths import paths
 
 from .model import BaseModel 
 
-def use_database(*models: type[BaseModel]):
+database: SqliteDatabase | None = None
 
-    db = SqliteDatabase(str(paths.userdata_db))
+def use_database(*models: type[BaseModel]) -> SqliteDatabase:
+    global database
 
-    db.connect()
+    if database is None:
+        database = SqliteDatabase(str(paths.userdata_db))
+
+        database.connect()
 
 
-    db.bind(models)
-    db.create_tables(models)
+        database.bind(models)
+        database.create_tables(models)
 
-    return db
+    return database
     

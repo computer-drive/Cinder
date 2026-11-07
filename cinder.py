@@ -6,7 +6,7 @@ from core.terminal.control.style import Style, Fore
 from core.arguments import Parser
 
 from app.paths import Paths
-from app.commands import parsers
+lazy from app.commands import parsers
 
 # 启动渲染
 console = startup()
@@ -35,11 +35,11 @@ def main():
             continue
 
         except Exception as e:
-            console.error(f"{Fore.red} 无法获取锁：{e}{Style.reset}")
+            console.error(f"无法获取锁：{e}")
             return 
 
         except KeyboardInterrupt:
-            console.error(f"{Fore.red} 用户中断了运行。{Style.reset}")
+            console.error(f"用户中断了运行。")
             return 
 
         break
