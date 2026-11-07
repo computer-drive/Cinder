@@ -1,5 +1,6 @@
 from peewee import (Model,
-    DatabaseProxy, CharField, Check, DateTimeField,)
+    CharField, Check, DateTimeField, BooleanField, JSONField
+)
 
 
 
@@ -21,4 +22,27 @@ class Accounts(BaseModel):
 
     mc_access_token = CharField() # 游戏凭证
     mc_expires_at = DateTimeField() # 游戏凭证过期时间
+
+    class Meta:
+        table_name = 'accounts'
+
+
+class MCVersions(BaseModel):
+    version = CharField(primary_key=True)
+    type = CharField(constraints=[Check('type in ("release", "snapshot")')])
+
+    url = CharField()  # 版本数据的url
+
+    time = DateTimeField() # 发布时间
+
+    sha1 = CharField() # 版本数据的哈希
+
+    is_safety = BooleanField()
+
+    data = JSONField(null=True)
+    
+    fetchd_at = DateTimeField(null=True)
+
+
+
 
