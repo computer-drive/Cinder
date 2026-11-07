@@ -31,6 +31,7 @@ class VersionManifest(BaseModel):
         return {v.id: v for v in self.versions}
 
 class FetchVersions(Task):
+    '''更新mc版本索引清单'''
     def __init__(self):
         pass
 
@@ -79,11 +80,51 @@ class FetchVersions(Task):
             "new_versions_count": len(not_exist_versions),
             "time_taken": time.time() - start_time
         }
+
+class FetchVersionManifest(Task):
+    '''获取一个版本的清单数据'''
+
+    def __init__(self, version: str):
+        self.version = version
+
+    def run(self):
+        database = use_database(MCVersions)
+
+        # 获取
+        version_info = MCVersions.get_or_none(MCVersions.version == self.version)
+
+        if version_info is None:
+            raise TaskError("version_not_found")
         
+        elif version_info.data != None:
+            yield StepUpdate("version_data_already_fetched")
+            return version_info.data
+
+        res_ = requests.get(version_info.url)
+
+        if res_.status_code != 200:
+            raise TaskError("fetch_error", {
+                "status_code": res_.status_code
+            })
+
+        try:
+            res_.json()
+        except Exception as e:
+            raise TaskError("response_error", {
+                "message": str(e)
+            })
+        
+        with database.atomic():
+            version_info.data = res_.json()
+
+            version_info.save()
+
+        return version_info.data
 
         
                 
-
 class InstancesService:
     def __init__(self):
         self.fetch_versions = FetchVersions
+
+        self.fetch_version_manifest = FetchVersionManifest
