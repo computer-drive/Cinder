@@ -28,8 +28,11 @@ class Accounts(BaseModel):
 
 
 class MCVersions(BaseModel):
+    class Meta:
+        table_name = "meta:mc_versions"
+        
     version = CharField(primary_key=True)
-    type = CharField(constraints=[Check('type in ("release", "snapshot")')])
+    type = CharField(constraints=[Check('type in ("release", "snapshot", "old_beta", "old_alpha")')])
 
     url = CharField()  # 版本数据的url
 

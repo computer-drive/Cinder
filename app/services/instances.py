@@ -1,5 +1,5 @@
 from typing import Literal
-from xml.sax import parseString
+import time
 
 lazy from pydantic import BaseModel, ValidationError, computed_field
 lazy import requests
@@ -15,7 +15,7 @@ VERSION_MANIFEST_URL = "https://piston-meta.mojang.com/mc/game/version_manifest_
 
 class VersionManifest(BaseModel):
 
-    class _Version:
+    class _Version(BaseModel):
         id: str
         type: Literal["release", "snapshot", "old_beta", "old_alpha"]
         url: str
@@ -30,7 +30,7 @@ class VersionManifest(BaseModel):
     def versions_map(self) -> dict[str, _Version]:
         return {v.id: v for v in self.versions}
 
-class FetchVersion(Task):
+class FetchVersions(Task):
     def __init__(self):
         pass
 
@@ -47,6 +47,7 @@ class FetchVersion(Task):
             })
 
         yield StepFinished("analyze_manifest")
+        start_time = time.time()
 
         database = use_database(MCVersions)
 
@@ -75,7 +76,8 @@ class FetchVersion(Task):
             MCVersions.insert_many(data).execute()
 
         return {
-            "new_versions_count": len(not_exist_versions)
+            "new_versions_count": len(not_exist_versions),
+            "time_taken": time.time() - start_time
         }
         
 
@@ -84,4 +86,4 @@ class FetchVersion(Task):
 
 class InstancesService:
     def __init__(self):
-        self.fetch_version_task = FetchVersion
+        self.fetch_versions = FetchVersions
