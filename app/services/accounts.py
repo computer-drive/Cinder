@@ -1,7 +1,7 @@
 import os
 import webbrowser
 from datetime import datetime, timedelta
-
+import time
 
 lazy import requests
 from pydantic import BaseModel, ValidationError, computed_field, PrivateAttr
@@ -156,6 +156,8 @@ class _New(Task):
                 }, True)
                 return 
 
+            time.sleep(1)
+
         try:
             result = MSTokenResponse(**res_.json())
         except ValidationError:
@@ -269,6 +271,7 @@ class _New(Task):
                 "message": f"登录信息获取失败。{e}",
                 "data": res_
             }, True)
+            return
 
         else:
             self.mc_expires_at = result.expires_at
@@ -293,6 +296,7 @@ class _New(Task):
                 "message": f"登录信息获取失败。{e}",
                 "data": res_
             }, True)
+            return 
         else:
 
             self.username = result.id
@@ -316,7 +320,7 @@ class _New(Task):
                     ms_access_token=self.ms_access_token,
                     ms_expires_at=self.ms_expires_at,
                     mc_access_token=self.mc_access_token,
-                    mc_expires_at=self.ms_expires_at,
+                    mc_expires_at=self.mc_expires_at,
                 )
                 
 

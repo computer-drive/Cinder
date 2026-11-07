@@ -273,6 +273,24 @@ postgres = ["psycopg2-binary"]
 psycopg3 = ["psycopg[binary]"]
 
 [[package]]
+name = "portalocker"
+version = "4.4.2"
+description = "Cross-platform file locking, with Redis, PID-file and bounded-semaphore locks"
+optional = false
+python-versions = ">=3.10"
+groups = ["main"]
+files = [
+    {file = "portalocker-4.4.2-py3-none-any.whl", hash = "sha256:e661b91af34fc1806740f8e0e42990fe55cd85cbae55675ac48a400a9656a51b"},
+    {file = "portalocker-4.4.2.tar.gz", hash = "sha256:7ac85bb2aa3c7873bf2ac72586fc6154afa4671ac786994a16617a6b7ccb3e5e"},
+]
+
+[package.extras]
+docs = ["furo", "sphinx (>=7)"]
+redis = ["redis (>=5.0)"]
+tests = ["coverage-conditional-plugin (>=0.9)", "fakeredis (>=2.31.0)", "portalocker[redis]", "pytest (>=5.4.1)", "pytest-cov (>=2.8.1)", "pytest-rerunfailures (>=15.1)", "pytest-timeout (>=2.1.0)", "types-pywin32 (>=310.0.0.20250429)", "typing-extensions (>=4.4)"]
+win32 = ["pywin32 (>=226) ; sys_platform == \"win32\""]
+
+[[package]]
 name = "pydantic"
 version = "2.14.3"
 description = "Data validation using Python type hints"
@@ -519,4 +537,4 @@ watchdog = ["watchdog (>=2.3)"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.15"
-content-hash = "cf2b16ab06aeade4283447cef76372394469f16bc6abcfda8ca8f390310c3a27"
+content-hash = "6ce6f789ffd74692e6a003bf3040721fc436cf083ce74d0bcb0ad195814c0e4e"

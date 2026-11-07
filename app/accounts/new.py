@@ -8,9 +8,6 @@ from core.terminal.control import Fore, Style
 from ..services.accounts import AccountsSerivce
 from ..services.base import StepFinished, StepUpdate
 
-
-
-from .schema import *
 from .command import accounts
 
 
