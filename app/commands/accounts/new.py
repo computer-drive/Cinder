@@ -5,8 +5,8 @@ lazy from requests.exceptions import RequestException
 from core.terminal.console import Console
 from core.terminal.control import Fore, Style
 
-from ..services.accounts import AccountsSerivce
-from ..services.base import StepFinished, StepUpdate, TaskError
+from ...services.accounts import AccountsSerivce
+from ...services.base import StepFinished, StepUpdate, TaskError
 
 from .command import accounts
 
