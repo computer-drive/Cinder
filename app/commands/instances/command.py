@@ -91,5 +91,18 @@ def fetch_version_manifest(
 
         spinner.error("获取失败")
 
+@instances.command("test")
+def test():
+    from ...database.model import MCVersions
+    from ...database import use_database
+
+    db = use_database(MCVersions)
+
+    versions = [v.version for v in MCVersions.select()]
+
+    for v in versions:
+        fetch_version_manifest(v)
+        
+
 
 

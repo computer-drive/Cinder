@@ -1,4 +1,6 @@
-from peewee import (Model,
+
+
+from peewee import (BlobField, ForeignKeyField, Model, IntegerField, AutoField,
     CharField, Check, DateTimeField, BooleanField, JSONField
 )
 
@@ -45,6 +47,35 @@ class MCVersions(BaseModel):
     data = JSONField(null=True)
     
     fetchd_at = DateTimeField(null=True)
+
+
+class ClientFiles(BaseModel):
+    class Meta:
+        table_name = "client_files"
+
+    id =  AutoField()
+
+    path = CharField(unique=True)
+
+    sha1 = CharField(unique=True)
+
+    size = IntegerField()
+
+    created_at = DateTimeField()
+
+
+
+
+class Instances(BaseModel):
+    class Meta:
+        table_name = "instances"
+
+    name = CharField(primary_key=True)
+
+    version = ForeignKeyField(MCVersions, backref="tweets")
+
+    client_file = ForeignKeyField(ClientFiles, backref="tweets")
+
 
 
 

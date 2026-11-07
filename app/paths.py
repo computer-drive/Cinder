@@ -16,39 +16,35 @@ class Paths:
 
     @property
     def lock(self):
-        return self.data / "cinder.lock"
+        return self.data / "cinder.lock" # 排它锁文件
     
     @property
     def config(self):
-        return self.data / "configuration.toml"
+        return self.data / "configuration.toml" # 配置文件
 
     @property
     def userdata_db(self):
-        return self.data / "userdata.db"
-
-    @property
-    def metadata_db(self):
-        return self.cache / "cache.db"
+        return self.data / "userdata.db" # 用户数据
 
     @property
     def libraries(self):
-        return self.cache / "libraries"
+        return self.data / "libraries"  # 共享库
 
     @property
     def assets(self):
-        return self.cache / "assets"
+        return self.data / "assets"   # 共享assets资源
 
     @property
     def mods(self):
-        return self.data / "mods"
+        return self.data / "mods" # 共享mods
 
     @property
     def instances(self):
-        return self.data / "instances"
+        return self.data / "instances" # 实例的jar文件
 
     @property
     def gamedata(self):
-        return self.data / "gamedata"
+        return self.data / "gamedata" # 游戏数据
 
     def ensure(self):
         '''确保所有路径存在，若不存在则会创建'''
