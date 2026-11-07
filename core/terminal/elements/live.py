@@ -39,10 +39,10 @@ class SpinnerState(Enum):
 
 
 class Spinner(LiveElement):
-    def __init__(self, output_queue: Queue[Element | None], text: str):
+    def __init__(self, output_queue: Queue[Element | None], text: str, state: SpinnerState = SpinnerState.LOADING):
         super().__init__(output_queue)
 
-        self.state: SpinnerState = SpinnerState.LOADING
+        self.state: SpinnerState = state
         self.index = 0
 
         self.text = text
@@ -84,8 +84,10 @@ class Spinner(LiveElement):
             if el is not None and isinstance(el, BaseElement):
                 Cursor.overwrite(el.get_text() + "\n")
             else:
-                # 如果组件不是 BaseElement 类型，就放回队列，等待后续处理
-                # print("不是BaseElement", repr(el))
+                if el is None:
+                    self.output_queue.put(None)
+                    return STOP_SIGNAL
+                
                 self.output_queue.put(el)
         
         if self.state == SpinnerState.FINISH:
