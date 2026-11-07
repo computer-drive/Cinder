@@ -88,12 +88,19 @@ def add_account():
                         spinner.error("登录失败")
 
                         break
-            
+
+                    case "input_account_name":
+                        spinner.finish("登录成功。")
+
+                        account_name = console.input("请输入账户名称：", lambda x: x.strip() != "")
+
+                        task.account_name = account_name
+
             elif isinstance(event, StepUpdate):
                 console.println(event.data["message"])
 
     except StopIteration as e:
-        console.println(f"登录成功。当前的账户名称为：{e.value}")
+        console.println(f"账户 {e.value["account_name"]} 已添加。")
 
     except RequestException as e:
         console.error(f"网络错误：{e}")

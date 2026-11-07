@@ -1,5 +1,5 @@
 from queue import Queue
-from typing import Literal
+from typing import Literal, Callable
 from shutil import get_terminal_size
 
 from readchar import readkey
@@ -181,15 +181,27 @@ class Choose(PromptElement):
         return current_value
 
 
-                
+class Input(PromptElement):
+    
+    def __init__(self, prompt: str, validation: Callable[[str], bool] | None = None):
+        self.prompt = prompt
+        self.validation = validation
+
+    def run(self) -> str:
+        while True:
+            value = input(self.prompt)
+            if self.validation is None or self.validation(value):
+                return value
+            else:
+                Cursor.up()
+                Cursor.print("\r（输入无效）")
 
 
-                
 
-            
-            
+
+
 
         
+    
+            
 
-
-        

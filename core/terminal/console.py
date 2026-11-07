@@ -1,10 +1,11 @@
 from queue import Queue
 from threading import Event
+from typing import Callable
 
 from .elements import Element
 from .elements.base import TextElement, TextType, TitleElement
 from .elements.live import Spinner
-from .elements.prompt import Confirm, Choose
+from .elements.prompt import Confirm, Choose, Input
 from .control import Fore, Style
 
 
@@ -83,4 +84,10 @@ class Console:
         self.put(el)
 
         return self.input_queue.get()
-        
+
+    def input(self, prompt: str, validation: Callable[[str], bool] | None = None) -> str:
+
+        el = Input(prompt, validation)
+        self.put(el)
+
+        return self.input_queue.get()

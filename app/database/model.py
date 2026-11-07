@@ -1,18 +1,16 @@
 from peewee import (Model,
     DatabaseProxy, CharField, Check, DateTimeField,)
 
-db_proxy = DatabaseProxy()
+
 
 class BaseModel(Model):
-
-    class Meta:
-        db = db_proxy
+    pass
 
 class Accounts(BaseModel):
     # 玩家的账户类型 可以是 microsoft（微软账号）, offline（离线账号）, thirdparty（第三方账号）
     kind = CharField(constraints=[Check('kind in ("microsoft", "offline")')])
 
-    id = CharField(primary_key=True) # 玩家的账户的ID，在启动器内部的唯一标识
+    id = CharField(primary_key=True,) # 玩家的账户的ID，在启动器内部的唯一标识
 
     name = CharField() # 玩家的账户名称（也就是玩家的Xbox名称，游戏里的名称）
     uuid = CharField() # 玩家的账户UUID（注意这里与传统的uuid不同，应该取消"-"连字符）

@@ -6,6 +6,8 @@ from datetime import datetime, timedelta
 lazy import requests
 from pydantic import BaseModel, ValidationError, computed_field, PrivateAttr
 
+lazy from ..database import use_database
+lazy from ..database.model import Accounts
 from .base import Task, StepUpdate, StepFinished
 
 
@@ -28,6 +30,14 @@ class DeviceCodeResponse(BaseModel):
 class MSTokenResponse(BaseModel):
     access_token: str
     refresh_token: str
+    expires_in: int
+
+    _created_at: datetime = PrivateAttr(default_factory=datetime.now)
+        
+    @computed_field
+    @property
+    def expires_at(self) -> datetime:
+        return self._created_at + timedelta(seconds=self.expires_in) 
 
 class XboxTokenResponse(BaseModel):
     Token: str
@@ -55,7 +65,7 @@ class MCTokenResponse(BaseModel):
     
     @computed_field
     @property
-    def expired_at(self) -> datetime:
+    def expires_at(self) -> datetime:
         return self._created_at + timedelta(seconds=self.expires_in) 
 
 class MCProfileResponse(BaseModel):
@@ -78,10 +88,15 @@ GET_MC_PROFILE = "https://api.minecraftservices.com/minecraft/profile"
 class _New(Task):
 
     def __init__(self):
-        self.access_token: str
-        self.refresh_token: str
+        self.ms_access_token: str
+        self.ms_refresh_token: str
+        self.ms_expires_at: datetime #指的是access_token的过期时间
 
         self.mc_access_token :str
+        self.mc_expires_at: datetime
+
+        self.account_name: str = ""
+
 
     def run(self):
 
@@ -150,8 +165,10 @@ class _New(Task):
             }, True)
             return
 
-        self.access_token = result.access_token
-        self.refresh_token = result.refresh_token
+        self.ms_access_token = result.access_token
+        self.ms_refresh_token = result.refresh_token
+
+        self.ms_expires_at = result.expires_at
 
 
         yield StepFinished("getting_xbox")
@@ -161,7 +178,7 @@ class _New(Task):
                 "Properties": {
                     "AuthMethod": "RPS",
                     "SiteName": "user.auth.xboxlive.com",
-                    "RpsTicket": f"d={self.access_token}"     
+                    "RpsTicket": f"d={self.ms_access_token}"     
                 },
                 "RelyingParty": "http://auth.xboxlive.com",
                 "TokenType": "JWT"
@@ -254,6 +271,7 @@ class _New(Task):
             }, True)
 
         else:
+            self.mc_expires_at = result.expires_at
             self.mc_access_token = result.access_token
 
         yield StepFinished("getting_profile")
@@ -279,25 +297,36 @@ class _New(Task):
 
             self.username = result.id
 
+            yield StepUpdate("username", {
+                "message": f"玩家名：{result.name}"
+            })
+
+        
+            yield StepFinished("input_account_name")
+
+            database = use_database(Accounts)
+
+            with database.atomic():
+                account = Accounts.create(
+                    kind="microsoft",
+                    id=self.account_name,
+                    name=result.name,
+                    uuid=result.id,
+                    ms_refresh_token=self.ms_refresh_token,
+                    ms_access_token=self.ms_access_token,
+                    ms_expires_at=self.ms_expires_at,
+                    mc_access_token=self.mc_access_token,
+                    mc_expires_at=self.ms_expires_at,
+                )
+                
+
             return {
+                "account_name": self.account_name,
                 "username": result.name
             }
 
         
 
-        
-
-
-
-
-
-
-
-
-
-        
-
-        
 
 
 class AccountsSerivce:
