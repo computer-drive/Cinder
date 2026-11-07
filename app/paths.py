@@ -15,6 +15,10 @@ class Paths:
     
 
     @property
+    def lock(self):
+        return self.data / "cinder.lock"
+    
+    @property
     def config(self):
         return self.data / "configuration.toml"
 
@@ -23,7 +27,7 @@ class Paths:
         return self.data / "userdata.db"
 
     @property
-    def cache_db(self):
+    def metadata_db(self):
         return self.cache / "cache.db"
 
     @property
