@@ -169,7 +169,7 @@ class DownloadInstance(Task):
 
         self.stop_event = Event()
 
-    def _donwload_client_file(self, queue: Queue[UpdateMessage], version_data: VersionManifest, ):
+    def _download_client_file(self, queue: Queue[UpdateMessage], version_data: VersionManifest, ):
         '''下载客户端文件'''
         # 分析客户端文件是否存在
         client_file = ClientFiles.get_or_none(sha1=version_data.downloads["sha1"])
@@ -184,6 +184,7 @@ class DownloadInstance(Task):
                     "id": client_file.id
                 }
             })
+            return 
         
         # 下载
         file_path = paths.instances / f"{version_data.downloads['sha1']}.jar"
@@ -198,6 +199,8 @@ class DownloadInstance(Task):
                 "total": version_data.downloads["size"]
             }
         })
+
+        is_error = False
 
         try:
             with requests.get(version_data.downloads["url"], stream=True) as res:
@@ -244,17 +247,10 @@ class DownloadInstance(Task):
                     "data": {}
                 })
 
-                # 删除半成品文件
-                try:
-                    os.remove(file_path)
-                except OSError:
-                    # 可能出现文件不存在，不用管
-                    pass
-
+                is_error = True
                 return
             
             # 验证通过，更新数据库记录
-
             with self.database.atomic():
                 file = ClientFiles.create(
                     sha1=version_data.downloads["sha1"],
@@ -280,24 +276,37 @@ class DownloadInstance(Task):
                 "type": "canceling",
                 "data": {}
             })
-
-            # 删除半成品文件
-            try:
-                os.remove(file_path)
-            except OSError:
-                # 可能出现文件不存在，不用管
-                pass
-
-            queue.put({
-                "type": "canceled",
-                "data": {}
-            })
-
+            is_error = True
 
         except requests.RequestException as e:
+            is_error = True
             raise TaskError("download_error", {
                 "message": str(e)
             })
+
+        except Exception as e:
+            is_error = True
+            raise e
+            
+
+
+        finally:
+            if is_error:
+                # 删除半成品文件
+                try:
+                    os.remove(file_path)
+                except OSError:
+                    # 可能出现文件不存在，不用管
+                    pass
+
+                queue.put({
+                    "type": "canceled",
+                    "data": {}
+                })
+
+    
+    def _download_libraries_file(self, queue: Queue[UpdateMessage], version_data: VersionManifest, ):
+
 
     
 

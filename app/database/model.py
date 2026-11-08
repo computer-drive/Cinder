@@ -5,7 +5,6 @@ from peewee import (BlobField, ForeignKeyField, Model, IntegerField, AutoField,
 )
 
 
-
 class BaseModel(Model):
     pass
 
@@ -29,24 +28,83 @@ class Accounts(BaseModel):
         table_name = 'accounts'
 
 
-class MCVersions(BaseModel):
+class MCAssetsIndex(BaseModel):
+
     class Meta:
-        table_name = "meta:mc_versions"
-        
+        table_name = "meta:mc_assets_index"
+
+    id = IntegerField(primary_key=True)
+
+    sha1 = CharField()
+
+    size = IntegerField()
+    total_size = IntegerField()
+
+    url = CharField()
+
+    virtual = BooleanField(default=False)
+
+class MCVersions(BaseModel):
     version = CharField(primary_key=True)
     type = CharField(constraints=[Check('type in ("release", "snapshot", "old_beta", "old_alpha")')])
 
     url = CharField()  # 版本数据的url
-
     time = DateTimeField() # 发布时间
-
     sha1 = CharField() # 版本数据的哈希
-
     is_safety = BooleanField()
 
-    data = JSONField(null=True)
+
+    assets = ForeignKeyField(MCAssetsIndex, backref='tweets', null=True)
+
+    main_class = CharField(null=True) # 版本的主类
     
-    fetchd_at = DateTimeField(null=True)
+    java_major = IntegerField(null=True)
+
+    client_files = CharField(null=True)  # 客户端jar文件的url
+    client_sha1 = CharField(null=True)   # 客户端文件的哈希
+    client_size = IntegerField(null=True) # 客户端文件的大小
+
+    fetched_at = DateTimeField(null=True)
+
+    class Meta:
+        table_name = "meta:mc_versions"
+        constraints = [Check('')]
+
+# ! WIP
+# class MCLibraries(BaseModel):
+#     class Meta:
+#         table_name = "meta:mc_libraries"
+
+#     version = ForeignKeyField(MCVersions, backref="tweets", primary_key=True)
+
+#     name = CharField()
+
+class MCArguments(BaseModel):
+    class Meta:
+        table_name = "meta:mc_arguments"
+
+        version = ForeignKeyField(MCVersions, backref="tweets", primary_key=True)
+
+        default_user_jvm = JSONField(null=True)
+
+        jvm = JSONField(null=True)
+
+        game = JSONField()
+
+class MCAssetsObjects(BaseModel):
+    class Meta:
+        table_name = "meta:mc_assets_objects"
+
+    id = AutoField()
+
+    assets_index = ForeignKeyField(MCAssetsIndex, backref="tweets")
+
+    name = CharField()
+
+    hash = CharField()
+
+    size = CharField()
+
 
 
 class ClientFiles(BaseModel):
@@ -63,7 +121,51 @@ class ClientFiles(BaseModel):
 
     created_at = DateTimeField()
 
+class AssetsFiles(BaseModel):
+    class Meta:
+        table_name = "assets_files"
 
+    id =  AutoField()
+
+    path = CharField(unique=True) # 存储相对路径
+
+    sha1 = CharField(unique=True)
+
+    size = IntegerField()
+
+    created_at = DateTimeField()
+
+class AssetsReference(BaseModel):
+    class Meta:
+        table_name = "assets_reference"
+
+    id =  AutoField()
+
+    asset_file = ForeignKeyField(AssetsFiles, backref="tweets")
+    version = ForeignKeyField(MCVersions, backref="tweets")
+
+class LibrariesFiles(BaseModel):
+    class Meta:
+        table_name = "libraries_files"
+
+    id =  AutoField()
+
+    path = CharField(unique=True) # 存储相对路径
+
+    sha1 = CharField(unique=True)
+
+    size = IntegerField()
+
+    created_at = DateTimeField()
+
+class LibrariesReference(BaseModel):
+    class Meta:
+        table_name = "libraries_reference"
+
+    id =  AutoField()
+
+    library_file = ForeignKeyField(LibrariesFiles, backref="tweets")
+    version = ForeignKeyField(MCVersions, backref="tweets")
 
 
 class Instances(BaseModel):
@@ -76,6 +178,18 @@ class Instances(BaseModel):
 
     client_file = ForeignKeyField(ClientFiles, backref="tweets")
 
+
+ALL = [Accounts,
+    MCVersions,
+    ClientFiles,
+    Instances, 
+    MCAssetsObjects,
+    MCAssetsIndex,
+    AssetsFiles,
+    AssetsReference,
+    LibrariesFiles,
+    LibrariesReference
+]
 
 
 
