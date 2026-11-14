@@ -57,7 +57,7 @@ class TitleElement(BaseElement):
             left_length = (space_length - 1) // 2
             right_length = left_length + 1
 
-        Cursor.print("=" * left_length + f"{Style.invert}{self.text}{Style.reset}" + "=" * right_length)
+        Cursor.println("=" * left_length + f"{Style.invert}{self.text}{Style.reset}" + "=" * right_length)
 
 
     

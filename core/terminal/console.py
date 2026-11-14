@@ -57,13 +57,15 @@ class Console:
         self.output_queue.put(None)
         # self.stop_event.set() # ! stop_event有问题，先不用它！
 
-    def warning(self, text: str):
+    def warning(self, text: str, prefix: bool = True):
         '''输出警告信息'''
-        self.println(f"{Fore.yellow}警告：{text}{Style.reset}")
+        self.println(f"{Fore.yellow}{"警告：" if prefix else ""}{text}{Style.reset}")
 
-    def error(self, text: str):
-        self.println(f"{Fore.red}错误：{text}{Style.reset}")
+    def error(self, text: str, prefix: bool = True):
+        self.println(f"{Fore.red}{"错误：" if prefix else ""}{text}{Style.reset}")
 
+    def success(self, text: str, prefix: bool = True):
+        self.println(f"{Fore.green}{"成功：" if prefix else ""}{text}{Style.reset}")
 
     def spinner(self, text: str):
         '''输出一个旋转的加载图标'''
