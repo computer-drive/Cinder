@@ -103,9 +103,7 @@ class _New(Task):
         APP_ID_ =  os.environ.get("cinder_override_app_id", None)
 
         if APP_ID_ is not None:
-            yield StepUpdate("preparing", {
-                "message": "注意，您正在使用被被覆写的AppID进行登录。"
-            })
+            yield StepUpdate("warn_override_app_id")
         else:
             APP_ID_ = APP_ID
 
@@ -278,10 +276,12 @@ class _New(Task):
 
 
             yield StepUpdate("username", {
-                "message": f"玩家名：{result.name}"
+                "username": f"{result.name}"
             })
 
             database = use_database(Accounts)
+
+            yield StepFinished("login_success")
 
             while True:
                 yield StepFinished("input_account_name")
@@ -290,9 +290,7 @@ class _New(Task):
                 
                 if self.cinder_name != "":
                     if Accounts.select().where(Accounts.id == self.cinder_name).exists():
-                        yield StepUpdate("account_name", {
-                            "message": "账号名已存在。"
-                        })
+                        yield StepUpdate("account_name_error")
                         continue
                     else:
                         break
