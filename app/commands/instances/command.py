@@ -6,18 +6,20 @@ from core.arguments import Parser, Argument
 from core.terminal.console import Console
 
 from ...services.base import TaskError, StepUpdate
-from ...services.instances import InstancesService
+from ...services.instances.instances import InstancesService
 
 instances = Parser("instances", "管理 Minecraft 实例")
 
-@instances.command("fetch-versions", "更新 Minecraft 版本清单")
-def fetch_versions():
+@instances.command("get::update", "更新 Minecraft 版本索引")
+def update_versions_index():
     console = Console.get_instance()
 
-    spinner = console.spinner("正在获取 Minecraft 版本清单...")
+    console.title("更新 Minecraft 版本索引")
+
+    spinner = console.spinner("正在获取数据...")
     spinner.loading1()
 
-    task = InstancesService().fetch_versions()
+    task = InstancesService().update_versions_index()
 
     gen = task.run()
 
@@ -25,10 +27,16 @@ def fetch_versions():
         while True:
             event = next(gen)
 
-            spinner.set_text("正在分析 Minecraft 版本清单数据...")
+            console.println(f"成功获取版本清单数据。（{event.data['time_taken']:.2f} 秒）")
+
+            spinner.set_text("正在分析数据...")
 
     except StopIteration as e:
-        console.println(f"发现并更新了 {e.value["new_versions_count"]} 个新的 Minecraft 版本。({e.value["time_taken"]:.2f} 秒)")
+        if e.value["new_versions_count"] == 0:
+            console.println("没有发现新的 Minecraft 版本。")
+        
+        else:
+            console.println(f"发现并更新了 {e.value["new_versions_count"]} 个新的 Minecraft 版本。（{e.value["time_taken"]:.2f} 秒）")
 
         spinner.finish("更新成功。")
 
@@ -48,7 +56,7 @@ def fetch_versions():
     finally:
         gen.close()
 
-@instances.command("fetch-version-manifest", "获取一个 Minecraft 版本清单数据")
+@instances.command("get::fetch-manifest", "获取一个 Minecraft 版本的清单数据")
 def fetch_version_manifest(
     version: Annotated[str, Argument("-v", "--version", help="要获取的版本")]
 ):
@@ -83,6 +91,7 @@ def fetch_version_manifest(
     except TaskError as e:
         if e.message == "version_not_found":
             console.error(f"版本 {version} 不存在。")
+            console.println("若你确定版本存在，请先运行 instances:update 命令。")
 
         spinner.error("获取失败。")
 

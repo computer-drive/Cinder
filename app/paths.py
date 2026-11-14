@@ -12,6 +12,7 @@ class Paths:
             Path.home() / ".cinder",
             Path.home() / ".cinder" / "cache"
         ).ensure()
+
     
 
     @property

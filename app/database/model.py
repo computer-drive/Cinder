@@ -11,7 +11,7 @@ class BaseModel(Model):
 class Accounts(BaseModel):
     '''玩家账户'''
     # 玩家的账户类型 可以是 microsoft（微软账号）, offline（离线账号）, thirdparty（第三方账号，暂不支持）
-    kind = CharField(constraints=[Check('kind in ("microsoft", "offline", )')])
+    kind = CharField(constraints=[Check('kind in ("microsoft", "offline" )')])
 
     id = CharField(primary_key=True,) # 玩家的账户的ID，在启动器内部的唯一标识
 
@@ -53,7 +53,11 @@ class MCAssetsIndex(BaseModel):
 
     url = CharField()
 
+    # 说明：用于处理1.6.x版本的资源文件索引
     virtual = BooleanField(default=False)
+
+    # 说明：用于处理更早版本（<1.5.2）的资源文件索引
+    map_to_resources = BooleanField(default=False)
 
 class MCVersions(BaseModel):
     '''MC版本信息'''
@@ -77,11 +81,32 @@ class MCVersions(BaseModel):
     client_sha1 = CharField(null=True)   # 客户端文件的哈希
     client_size = IntegerField(null=True) # 客户端文件的大小
 
+    logging_argument = CharField(null=True) # 日志的启动参数
+    logging_file = JSONField(null=True) # 日志的文件信息
+
 
     fetched_at = DateTimeField(null=True)
 
     class Meta:
         table_name = "meta:mc_versions"
+
+        constraints = [
+            Check(
+                "( "
+                "  (java_major   IS NULL     AND "
+                "   client_files IS NULL     AND "
+                "   client_sha1  IS NULL     AND "
+                "   client_size  IS NULL     AND "
+                "   fetched_at   IS NULL) "
+                "  OR "
+                "  (java_major   IS NOT NULL AND "
+                "   client_files IS NOT NULL AND "
+                "   client_sha1  IS NOT NULL AND "
+                "   client_size  IS NOT NULL AND "
+                "   fetched_at   IS NOT NULL) "
+                ")"
+            )
+        ]
 
 
 class MCLibraries(BaseModel):
@@ -111,8 +136,6 @@ class MCArguments(BaseModel):
 
 
     version = ForeignKeyField(MCVersions, backref="tweets", primary_key=True)
-
-    default_user_jvm = JSONField(null=True) # 这个参数是26.3版本新加的
 
     jvm = JSONField(null=True)
 
