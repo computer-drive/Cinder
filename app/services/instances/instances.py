@@ -1,10 +1,9 @@
-from typing import Literal, TypedDict, Any, cast
+from typing import Literal,  Any, cast
 import time
 from threading import Thread, Event
 from enum import Enum
 from queue import Queue, Empty
-import sys
-
+import os
 from datetime import datetime
 import json
 
@@ -213,7 +212,6 @@ class UpdateVersionManifest(Task[dict[str, Any]]):
                             "rules": [rule.model_dump() for rule in library.rules] if library.rules else None,
                         })
 
-                        
                     
                     if library.natives is not None:
                         # 若有natives库，添加到列表，是native库
@@ -303,9 +301,7 @@ class UpdateVersionManifest(Task[dict[str, Any]]):
                 "message": "未知的清单类型。",
             })
        
-class UpdateMessage(TypedDict):
-    type: str
-    data: dict[str, Any]
+
 
 
 THREAD_COUNT = 16
@@ -371,7 +367,7 @@ class InstallInstance(Task[dict[str, Any]]):
         exist_libraries: list[MCLibraries] = []
 
         for lib in all_libraries:
-            if lib.name in existing_hashs:
+            if lib.sha1 in existing_hashs:
                 exist_libraries.append(lib)
             else:
                 not_exist_libraries.append(lib)
@@ -383,6 +379,7 @@ class InstallInstance(Task[dict[str, Any]]):
 
         if version_info is None:
             raise TaskError(self.State.VERSION_NOT_FOUND.value)
+
         elif version_info.fetched_at is None:
             raise TaskError(self.State.VERSION_UNFETCHED.value)
 
@@ -409,14 +406,16 @@ class InstallInstance(Task[dict[str, Any]]):
 
         #region 添加assets下载
         not_exist_assets, self.exist_assets = self.get_not_exist_assets(list(
-                    MCAssetsObjects.select()
+                    MCAssetsObjects.select(MCAssetsObjects.hash, MCAssetsObjects.size)
                     .where(MCAssetsObjects.assets_index == version_info.assets)
+                    .group_by(MCAssetsObjects.hash)
+
                 ))
 
         for asset in not_exist_assets:
             count += 1
 
-            object_path = paths.assets / asset.hash[:2]
+            object_path = paths.assets_objects / asset.hash[:2]
 
             object_path.mkdir(parents=True, exist_ok=True)
 
@@ -484,6 +483,7 @@ class InstallInstance(Task[dict[str, Any]]):
         })
 
         downloader_queue: Queue[Downloader] = Queue()  # 用于主线程和下载线程之间的通信，池大小为8个
+        writer_database_queue: Queue[Files] = Queue()
 
         def worker(downloader_queue: Queue[Downloader], stop_event: Event):
             while True:
@@ -498,12 +498,35 @@ class InstallInstance(Task[dict[str, Any]]):
                 downloader.run()
 
                 downloader_queue.task_done()
+
+        def writer_worker(writer_database_queue: Queue[Files], stop_event: Event):
+            while True:
+                if stop_event.is_set():
+                    break
+                
+                try:
+                    file = writer_database_queue.get(timeout=0.1)
+                except Empty:
+                    continue
+
+                try:
+                    file.save()
+                except Exception as e:
+                    print(file.path, file.sha1)
+                    print(e)
+                    continue
+                
+                writer_database_queue.task_done()
         
-        
+        writer_thread = Thread(target=writer_worker, args=(writer_database_queue, stop_event))
         threads: list[Thread] = [Thread(target=worker, args=(downloader_queue, stop_event)) for _ in range(THREAD_COUNT)]
 
         for t in threads:
             t.start()
+        
+        writer_thread.start()
+
+
 
         current_downloaders: list[Downloader] = []
 
@@ -514,8 +537,10 @@ class InstallInstance(Task[dict[str, Any]]):
         try:
             while True:
 
+                all_done = False
                 while len(current_downloaders) < THREAD_COUNT:
                     if not downloaders_list:
+                        all_done = True
                         break
                         
                     new_downloader = downloaders_list.pop(0)
@@ -528,20 +553,32 @@ class InstallInstance(Task[dict[str, Any]]):
                         "thread": current_downloaders.index(new_downloader),
                         "id": new_downloader.id,
                     })
+                
+                if all_done:
+                    break
 
 
                 try:
                     message = progress_queue.get(timeout=0.1)
                 except Empty:
                     continue
+
+                downloader = downloaders[message.id]
                 
                 if message.type in ["download_error", "verify_error"]:
-                    current_downloaders.remove(downloaders[message.id])
+                    current_downloaders.remove(downloader)
 
-                    error_downloaders.append(downloaders[message.id])
+                    error_downloaders.append(downloader)
 
                 elif message.type == "finished":
-                    current_downloaders.remove(downloaders[message.id])
+                    current_downloaders.remove(downloader)
+
+                    writer_database_queue.put(Files(
+                        path=os.path.relpath(downloader.path, paths.data),
+                        sha1=downloader.sha1,
+                        size=message.data["size"],
+                        created_at=datetime.now(),
+                    ))
 
 
                 thread: int = -1
@@ -568,12 +605,19 @@ class InstallInstance(Task[dict[str, Any]]):
             
             yield StepFinished(self.State.CANCELED.value, {})
 
+
+        writer_thread.join()
+
+        for t in threads:
+            t.join()
+        
         if len(error_downloaders) > 0 :
             yield StepUpdate("has_error", {
                 "count": len(error_downloaders)
             })
 
-        
+
+
           
 class InstancesService:
     def __init__(self):

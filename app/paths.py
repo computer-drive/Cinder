@@ -32,8 +32,22 @@ class Paths:
         return self.data / "libraries"  # 共享库
 
     @property
+    def natives(self):
+        return self.libraries / "natives" # 共享natives
+
+
+
+    @property
     def assets(self):
         return self.data / "assets"   # 共享assets资源
+
+    @property
+    def assets_index(self):
+        return self.assets / "index" # 共享assets索引
+
+    @property
+    def assets_objects(self):
+        return self.assets / "objects" # 共享assets数据库
 
     @property
     def mods(self):
@@ -43,9 +57,7 @@ class Paths:
     def instances(self):
         return self.data / "instances" # 实例的jar文件
 
-    @property
-    def natives(self):
-        return self.libraries / "natives" # 共享natives
+    
 
     @property
     def gamedata(self):
@@ -53,8 +65,10 @@ class Paths:
 
     def ensure(self):
         '''确保所有路径存在，若不存在则会创建'''
-        for path in [self.config, self.cache, self.libraries,
-                self.assets, self.mods, self.instances, self.natives, self.gamedata]:
+        for path in [ self.cache, self.libraries,
+                self.assets, self.mods, self.instances, self.natives, self.gamedata,
+                self.assets_index, self.assets_objects]:
+            
             path.mkdir(parents=True, exist_ok=True)
 
         return self

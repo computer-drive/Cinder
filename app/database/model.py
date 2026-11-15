@@ -32,9 +32,14 @@ class Files(BaseModel):
     class Meta:
         table_name = "files"
 
+        indexes = (
+            (("path", "sha1"), True)
+            ,
+        )
+
     id = AutoField()
-    path = CharField(unique=True)
-    sha1 = CharField(unique=True)
+    path = CharField()
+    sha1 = CharField()
     size = IntegerField()
     created_at = DateTimeField(default=datetime.now)
 

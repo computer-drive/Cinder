@@ -124,7 +124,8 @@ def fetch_version_manifest(
 
 @instances.command("install", "安装一个 Minecraft 实例")
 def install_instance(
-    version: Annotated[str, Argument("-v", "--version", help="要安装的版本")]
+    version: Annotated[str, Argument("-v", "--version", help="要安装的版本")],
+    update: Annotated[bool, Argument("-u", "--update", help="是否先更新版本索引")]
 ):
     console = Console.get_instance()
 
@@ -133,6 +134,12 @@ def install_instance(
     spinner = console.spinner(f"正在准备安装 {version}...")
 
     stop_event = Event()
+
+
+    if update:
+        service.update_versions_index().run_complete()
+
+        service.fetch_version_manifest(version).run_complete()
 
 
     task = service.install_instance(version, stop_event)
@@ -181,12 +188,19 @@ def install_instance(
                     console.warning("已下载的文件未被删除。若想清理这些文件请运行self gc；若想继续安装 Minecraft 请重新运行此命令。")
 
                 
-
-            
-    
-
     except StopIteration:
         console.println(f"成功安装版本 {version}。")
+
+    except TaskError as e:
+        if e.message == task.State.VERSION_NOT_FOUND.value:
+            console.error(f"版本 {version} 不存在。")
+            console.println("若你确定版本存在，请先运行 instances:update 命令。")
+
+        elif e.message == task.State.VERSION_UNFETCHED.value:
+            console.error(f"版本 {version} 的数据未获取过。")
+
+        else:
+            print(e.message)
 
 
     finally:

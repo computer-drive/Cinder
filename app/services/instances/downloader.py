@@ -34,10 +34,14 @@ class Downloader:
         self.queue:      Queue[DownloadMessage] = queue
         self.sha1:       str | None             = sha1
 
+        
+
 
         
     def run(self):
         download_size = 0
+        is_error = False
+
         try:
             response = requests.get(self.url, stream=True, timeout=5)
 
@@ -69,20 +73,18 @@ class Downloader:
 
 
         except requests.RequestException as e:
+            is_error = True
             self.queue.put(DownloadMessage(
                 self.id, "download_error",
                 {
                     "message": str(e) 
                 }
             ))
+
         
         except Canceled:
-            # 删除半成品文件
-            if self.path.exists():
-                self.path.unlink()
-
-            self.queue.put(DownloadMessage(self.id, "canceled"))
-
+            is_error = True
+    
         else:
             if self.sha1 is not None:
                 # 校验sha1
@@ -92,7 +94,16 @@ class Downloader:
                         self.queue.put(DownloadMessage(self.id, "verify_error"))
 
 
-            self.queue.put(DownloadMessage(self.id, "finished"))
+            self.queue.put(DownloadMessage(self.id, "finished", {
+                "size": download_size,
+            }))
+
+        # 删除半成品文件
+        if is_error:
+            if self.path.exists():
+                self.path.unlink()
+
+            self.queue.put(DownloadMessage(self.id, "canceled"))
 
         
 
