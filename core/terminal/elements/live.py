@@ -180,6 +180,17 @@ class DownloadProgress(LiveElement):
             Cursor.println("")
             return STOP_SIGNAL
 
+        while not self.output_queue.empty():
+            el = self.output_queue.get_nowait()
+
+            if el is None:
+                self.output_queue.put(None)
+                return STOP_SIGNAL
+            elif isinstance(el, BaseElement):
+                Cursor.print(f"\r{el.get_text()}")
+            else:
+                print("unsupport element")
+
         progress_length = min(int(self.progress / self.total * self.progress_length), self.progress_length)
         null_length = self.progress_length - progress_length
 

@@ -509,10 +509,11 @@ class InstallInstance(Task[dict[str, Any]]):
 
         downloaders_list = list(downloaders.values())
 
+        error_downloaders: list[Downloader] = []
 
         try:
             while True:
-                #region
+
                 while len(current_downloaders) < THREAD_COUNT:
                     if not downloaders_list:
                         break
@@ -533,16 +534,21 @@ class InstallInstance(Task[dict[str, Any]]):
                     message = progress_queue.get(timeout=0.1)
                 except Empty:
                     continue
-
-                if message.type == "finished":
+                
+                if message.type in ["download_error", "verify_error"]:
                     current_downloaders.remove(downloaders[message.id])
+
+                    error_downloaders.append(downloaders[message.id])
+
+                elif message.type == "finished":
+                    current_downloaders.remove(downloaders[message.id])
+
 
                 thread: int = -1
                 for i, downloader in enumerate(current_downloaders):
                     if downloader.id == message.id:
                         thread = i
                         break
-
         
                 yield StepUpdate("download_progress", {
                                 "id": message.id,
@@ -550,8 +556,6 @@ class InstallInstance(Task[dict[str, Any]]):
                                 "type": message.type,
                                 "data": message.data
                             })
-
-                #endregion
 
         except KeyboardInterrupt:
             stop_event.set()
@@ -564,7 +568,12 @@ class InstallInstance(Task[dict[str, Any]]):
             
             yield StepFinished(self.State.CANCELED.value, {})
 
+        if len(error_downloaders) > 0 :
+            yield StepUpdate("has_error", {
+                "count": len(error_downloaders)
+            })
 
+        
           
 class InstancesService:
     def __init__(self):

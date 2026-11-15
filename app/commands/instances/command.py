@@ -163,12 +163,24 @@ def install_instance(
             
                 elif event.step == "canceled":
                     console.println("清理完成。")
+                    console.warning("已下载的文件未被删除。若想清理这些文件请运行self gc；若想继续安装 Minecraft 请重新运行此命令。")
 
                     break
 
             else:
-                if event.step == "download_progress" and event.data["type"] == "progress":
-                    download_progress.add_progress(event.data["data"]["new_size"])
+                if event.step == "download_progress":
+                    if event.data["type"] == "progress":
+                        download_progress.add_progress(event.data["data"]["new_size"])
+
+                    elif event.data["type"] == "download_error":
+                        # print(event.data["data"])
+                        console.error(f"下载文件 {event.data["id"]} 时出错：{event.data["data"]["message"]}")
+
+                elif event.step == "has_error":
+                    console.warning(f"共有 {event.data["count"]} 个文件未能下载。")
+                    console.warning("已下载的文件未被删除。若想清理这些文件请运行self gc；若想继续安装 Minecraft 请重新运行此命令。")
+
+                
 
             
     
