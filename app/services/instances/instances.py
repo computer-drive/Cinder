@@ -1,24 +1,26 @@
-from typing import Literal, TypedDict, Any
+from typing import Literal, TypedDict, Any, cast
 import time
 from threading import Thread, Event
-from queue import Queue
-import os
-import hashlib
+from enum import Enum
+from queue import Queue, Empty
+import sys
+
 from datetime import datetime
 import json
 
-lazy from pydantic import BaseModel, ValidationError, computed_field
+lazy from pydantic import BaseModel, ValidationError, computed_field, TypeAdapter
 lazy import requests
 
-from ...database import use_database
-from ...database.model import MCLibraries, MCVersions, MCArguments, MCAssetsIndex, MCAssetsObjects
-
-from ..base import Task, StepFinished, StepUpdate, TaskError
 from ...paths import paths
-
-from .schema import VersionManifestV2, AssetsObjects
+from ...database import use_database
+from ...database.model import MCLibraries, MCVersions, MCArguments, MCAssetsIndex, MCAssetsObjects, Files
+from ..base import Task, StepFinished, StepUpdate, TaskError
+from .schema import VersionManifestV2, AssetsObjects, match_rules, _Context, Rule
+from .downloader import Downloader, DownloadMessage
 
 VERSION_MANIFEST_URL = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json"
+
+ASSETS_OBJECTS_URL = "https://resources.download.minecraft.net/"
 
 
 class VersionIndexManifest(BaseModel):
@@ -39,9 +41,7 @@ class VersionIndexManifest(BaseModel):
         return {v.id: v for v in self.versions}
 
 
-    
-
-class UpdateVersionsIndex(Task):
+class UpdateVersionsIndex(Task[dict[str, Any]]):
     '''更新mc版本索引清单'''
     def __init__(self):
         pass
@@ -94,7 +94,7 @@ class UpdateVersionsIndex(Task):
             "time_taken": time.time() - start_time
         }
 
-class UpdateVersionManifest(Task):
+class UpdateVersionManifest(Task[dict[str, Any]]):
     '''获取一个版本的清单数据'''
 
     def __init__(self, version: str):
@@ -124,6 +124,8 @@ class UpdateVersionManifest(Task):
             with open(cache_path, "r") as f:
                 data = json.load(f)
 
+            yield StepUpdate("fetch_manifest.cache")
+
         else:
             # 缓存不存在
             response = requests.get(version_info.url)
@@ -135,11 +137,19 @@ class UpdateVersionManifest(Task):
             with open(cache_path, "w") as f:
                 json.dump(response.json(), f)
 
+            yield StepUpdate("fetch_manifest.network")
 
+        yield StepFinished("analyze_manifest")
 
         if data.get("arguments", None) is not None:
             # V2清单
-            manifest = VersionManifestV2(**data)
+            try:
+                manifest = VersionManifestV2(**data)
+            except ValidationError as e:
+                raise TaskError("unknown_manifest_type", {
+                    "message": str(e),
+                    "data": data
+                })
 
             # 获取assets objects
             # 读取缓存
@@ -173,18 +183,84 @@ class UpdateVersionManifest(Task):
                     game   = [game if isinstance(game, str) else game.model_dump() for game in manifest.arguments.game]
                 ).execute()
 
-                MCLibraries.insert_many([
-                    {
-                        "version": version_info,
-                        "name": library.name,
-                        "sha1": library.downloads.artifact.sha1,
-                        "size": library.downloads.artifact.size,
-                        "url": library.downloads.artifact.url,
-                        "maven_path": library.downloads.artifact.path,
-                    } for library in manifest.libraries 
-                ]).execute()
+                
+                #region 解析libraries
+                libraries = []
 
-                assets_index = MCAssetsIndex.create(
+                for library in manifest.libraries:
+                    hit = False
+
+                    if library.rules is not None:
+                        # 判断库是否符合规则
+                        if not match_rules(library.rules, {}):
+                            # 若不符合，则跳过
+                            continue
+
+                        
+
+                    if library.downloads.artifact is not None:
+                        # 若有artifact，则添加到列表，不是native库
+                        hit = True
+
+                        
+                        libraries.append({
+                            "name": library.name,
+                            "sha1": library.downloads.artifact.sha1,
+                            "size": library.downloads.artifact.size,
+                            "url": library.downloads.artifact.url,
+                            "maven_path": library.downloads.artifact.path,
+                            "is_native": False,
+                            "version": version_info,
+                            "rules": [rule.model_dump() for rule in library.rules] if library.rules else None,
+                        })
+
+                        
+                    
+                    if library.natives is not None:
+                        # 若有natives库，添加到列表，是native库
+                        if library.downloads.classifiers is None:
+                            # 没有natives的包，直接跳过
+                            continue
+
+                        hit = True
+
+
+                        ctx = _Context()
+
+                        # 根据平台匹配
+                        classifier_name = library.natives.get(ctx.platform_name, None)
+
+                        if classifier_name is None:
+                            # ! 注意，此错误大概率不会发生，除非mojang的数据写错了
+                            raise TaskError("native_library.platform_not_supported", {
+                                "library_name": library.name,
+                                "supported_platforms": library.natives.keys(),
+                            })
+
+                        else:
+                            
+                            # 若有classifier，则添加到列表，是native库
+                            libraries.append({
+                                "name": library.name,
+                                "sha1": library.downloads.classifiers[classifier_name].sha1,
+                                "size": library.downloads.classifiers[classifier_name].size,
+                                "url": library.downloads.classifiers[classifier_name].url,
+                                "maven_path": library.downloads.classifiers[classifier_name].path,
+                                "is_native": True,
+                                "version": version_info,
+                                "rules": [rule.model_dump() for rule in library.rules] if library.rules else None,
+                            })
+                        
+                    if not hit:
+                        yield StepUpdate("libraries.unused", {
+                            "library_name": library.name,
+                        })
+                    #endregion
+                        
+
+                MCLibraries.insert_many(libraries).execute()
+
+                assets_index, created = MCAssetsIndex.get_or_create(
                     id               = manifest.assetIndex.id,
                     sha1             = manifest.assetIndex.sha1,
                     size             = manifest.assetIndex.size,
@@ -193,6 +269,7 @@ class UpdateVersionManifest(Task):
                     virtual          = assets_objects.vitural,
                     map_to_resources = assets_objects.map_to_resources,
                 )
+
 
                 # 插入assets objects
                 MCAssetsObjects.insert_many([
@@ -223,204 +300,264 @@ class UpdateVersionManifest(Task):
             # ! TODO
             raise NotImplementedError("V1清单未实现")
         else:
-            raise TaskError("unknown_manifest_type")
+            raise TaskError("unknown_manifest_type", {
+                "message": "未知的清单类型。",
+            })
 
         
 
         
-
-
-
-
-
-
 class UpdateMessage(TypedDict):
     type: str
     data: dict[str, Any]
 
+
+
+
+
 # ! WIP
-class DownloadInstance(Task):
+class InstallInstance(Task[dict[str, Any]]):
 
-    def __init__(self, version: str, deeply: bool):
-        self.version = version
-        self.deeply = deeply
+    class State(Enum):
+        VERSION_NOT_FOUND = "version_not_found"
+        VERSION_UNFETCHED = "version_unfetched"
+        ASSETS_NOT_FOUND = "assets_not_found"
+        DOWNLOADING = "downloading"
 
-        self.database = use_database(MCVersions, ClientFiles)
 
-        self.stop_event = Event()
+    def __init__(self, version: str, stop_event: Event):
+        self.version: str = version
+        self.database = use_database()
 
-    def _download_client_file(self, queue: Queue[UpdateMessage], version_data: VersionManifest, ):
-        '''下载客户端文件'''
-        # 分析客户端文件是否存在
-        client_file = ClientFiles.get_or_none(sha1=version_data.downloads["sha1"])
+        self.stop_event = stop_event
 
-        if client_file is not None:
-            # 已经下载了
-            queue.put({
-                "type": "finished",
-                "data": {
-                    "extra": "already_exist",
-                    "path": client_file.path,
-                    "id": client_file.id
-                }
-            })
-            return 
+        self.exist_assets: list[MCAssetsObjects] = []
+        self.exist_libraries: list[MCLibraries] = []
+
+
+    def get_not_exist_assets(self, all_objects: list[MCAssetsObjects]):
+        # 先查询所有的objects
+
+        hash_map = {obj.hash: obj for obj in all_objects}
+
+        # 查找Files表中所有存在的objects
+        existing_hashs = [file.sha1 for file in (
+            Files.select()
+            .where(Files.sha1.in_(list(hash_map.keys())))
+        )]
+
+        # 过滤出不存在的objects
+        not_exist_assets: list[MCAssetsObjects] = []
+        exist_assets: list[MCAssetsObjects] = []
+
+        for obj in all_objects:
+            if obj.hash in existing_hashs:
+                exist_assets.append(obj)
+            else:
+                not_exist_assets.append(obj)
         
-        # 下载
-        file_path = paths.instances / f"{version_data.downloads['sha1']}.jar"
+        return not_exist_assets, exist_assets
 
-        downloaded_size = 0
-        last_report = 0
+    def get_not_exist_libraries(self, all_libraries: list[MCLibraries]):
+        # 先查询所有的libraries
+        hash_map = {lib.sha1: lib for lib in all_libraries}
 
-        queue.put({
-            "type": "update_progress",
-            "data": {
-                "downloaded": downloaded_size,
-                "total": version_data.downloads["size"]
-            }
-        })
+        # 查找Files表中所有存在的libraries
+        existing_hashs = [file.sha1 for file in (
+            Files.select()
+            .where(Files.sha1.in_(list(hash_map.keys())))
+        )]
 
-        is_error = False
+        # 过滤出不存在的libraries
+        not_exist_libraries: list[MCLibraries] = []
+        exist_libraries: list[MCLibraries] = []
 
-        try:
-            with requests.get(version_data.downloads["url"], stream=True) as res:
-                res.raise_for_status() 
-                with open(file_path, "wb") as f:
-                    for chunk in res.iter_content(chunk_size=64 * 1024): # 64 KiB
+        for lib in all_libraries:
+            if lib.name in existing_hashs:
+                exist_libraries.append(lib)
+            else:
+                not_exist_libraries.append(lib)
 
-                        if self.stop_event.is_set():
-                            raise KeyboardInterrupt
-                        
-                        if not chunk:
-                            continue
+        return not_exist_libraries, exist_libraries
 
-                        f.write(chunk)
+    
+    def run(self):
+        version_info: MCVersions | None = MCVersions.get_or_none(version=self.version)
 
-                        downloaded_size += len(chunk)
+        if version_info is None:
+            raise TaskError(self.State.VERSION_NOT_FOUND.value)
+        elif version_info.fetched_at is None:
+            raise TaskError(self.State.VERSION_UNFETCHED.value)
 
-                        if downloaded_size - last_report >= 1024 * 1024:
-                            queue.put({
-                                "type": "update_progress",
-                                "data": {
-                                    "downloaded": downloaded_size,
-                                    "total": version_data.downloads["size"]
-                                }
-                            })
+        count = 0
+        total_size: int = 0
+        downloaders : dict[int, Downloader] = {}
 
-                            last_report = downloaded_size
+        stop_event = Event()
+        progress_queue: Queue[DownloadMessage] = Queue()
 
+        # TODO: client的下载，需要先判断是否已经存在
+        #region 添加client下载
+        downloaders[count] = Downloader(
+            stop_event,
+            count,
+            "client",
+            version_info.client_files, #pyright: ignore[reportArgumentType]
+            version_info.client_sha1,
+            paths.instances / f"{self.version}.jar",
+            progress_queue
+        )
+        total_size += cast(int, version_info.client_size)
+        #endregion
+
+        #region 添加assets下载
+        not_exist_assets, self.exist_assets = self.get_not_exist_assets(list(
+                    MCAssetsObjects.select()
+                    .where(MCAssetsObjects.assets_index == version_info.assets)
+                ))
+
+        for asset in not_exist_assets:
+            count += 1
+
+            object_path = paths.assets / asset.hash[:2]
+
+            object_path.mkdir(parents=True, exist_ok=True)
+
+            downloaders[count] = Downloader(
+                stop_event,
+                count,
+                "assets",
+                ASSETS_OBJECTS_URL + asset.hash[:2] + "/" + asset.hash,
+                asset.hash,
+                object_path / asset.hash,
+                progress_queue
+            )
+
+            total_size += asset.size
+        #endregion
         
+        #region 添加libraries下载
+        not_exist_libraries, self.exist_libraries = self.get_not_exist_libraries(list(
+            MCLibraries.select()
+            .where(MCLibraries.version == version_info)
+        ))
 
-            # 下载完成，验证sha1
-            queue.put({
-                "type": "verifing",
-                "data": {}
-            })
+        rule_adapter = TypeAdapter(list[Rule])
 
-            # 计算sha1
-            with open(file_path, 'rb') as f:
-                file_hash = hashlib.file_digest(f, "sha1").hexdigest()
-
-            if file_hash != version_data.downloads["sha1"]:
-                queue.put({
-                    "type": "verify_error",
-                    "data": {}
-                })
-
-                is_error = True
-                return
+        for library in not_exist_libraries:
+            count += 1
             
-            # 验证通过，更新数据库记录
-            with self.database.atomic():
-                file = ClientFiles.create(
-                    sha1=version_data.downloads["sha1"],
-                    path=file_path,
-                    size=downloaded_size,
-                    created_at=datetime.now()
+            if library.rules is not None:
+                # 若规则不为空，则判断是否符合规则
+                if not match_rules(rule_adapter.validate_python(library.rules), {}):
+                    # 不符合跳过
+                    continue
+
+            if library.is_native:
+                downloaders[count] = Downloader(
+                    stop_event,
+                    count,
+                    "libraries",
+                    library.url,
+                    library.sha1,
+                    paths.natives / (library.name + ".jar"),
+                    progress_queue
                 )
 
-                file.save()
+                total_size += library.size
+            else:
+                downloaders[count] = Downloader(
+                    stop_event,
+                    count,
+                    "libraries",
+                    library.url,
+                    library.sha1,
+                    paths.instances / (library.name + ".jar"),
+                    progress_queue
+                )
+                
+                total_size += library.size
+        #endregion
+        
+        # TODO: 日志config的xml下载
 
+        yield StepFinished(self.State.DOWNLOADING.value, {
+            "total_size": total_size,
+            "count": count,
+        })
 
-            queue.put({
-                "type": "finished",
-                "data": {
-                    "path": file_path,
-                    "id": file.id,
-                    "extra": ""
-                }
-            })
+        downloader_queue: Queue[Downloader] = Queue()  # 用于主线程和下载线程之间的通信，池大小为8个
 
-        except KeyboardInterrupt:
-            queue.put({
-                "type": "canceling",
-                "data": {}
-            })
-            is_error = True
+        def worker(downloader_queue: Queue[Downloader], stop_event: Event):
+            while True:
+                if stop_event.is_set():
+                    break
+                
+                try:
+                    downloader = downloader_queue.get(timeout=0.1)
+                except Empty:
+                    continue
 
-        except requests.RequestException as e:
-            is_error = True
-            raise TaskError("download_error", {
-                "message": str(e)
-            })
+                downloader.run()
 
-        except Exception as e:
-            is_error = True
-            raise e
+                # downloader_queue.task_done()
+        
+        
+        threads = [Thread(target=worker, args=(downloader_queue, stop_event)) for _ in range(16)]
+
+        for thread in threads: thread.start()
+
+        current_downloaders: list[Downloader] = []
+
+        downloaders_list = list(downloaders.values())
+
+        while True:
             
 
+            while len(current_downloaders) < 16:
+                if not downloaders_list:
+                    break
+                    
+                new_downloader = downloaders_list.pop(0)
+                
+                current_downloaders.append(new_downloader)
 
-        finally:
-            if is_error:
-                # 删除半成品文件
-                try:
-                    os.remove(file_path)
-                except OSError:
-                    # 可能出现文件不存在，不用管
-                    pass
+                downloader_queue.put(new_downloader)
 
-                queue.put({
-                    "type": "canceled",
-                    "data": {}
+                yield StepUpdate("new_download_started", {
+                    "thread": current_downloaders.index(new_downloader),
+                    "id": new_downloader.id,
                 })
 
-    
-    def _download_libraries_file(self, queue: Queue[UpdateMessage], version_data: VersionManifest, ):
-        pass
-
-    
-
-    def run(self):
-
-        if self.deeply:
-            yield StepFinished("updating_version_manifest")
-            try:
-                UpdateVersionsIndex().run_complete()
-            except TaskError as e:
-                raise TaskError("failed_to_update_version_manifest", e.data["message"]) #type: ignore
 
             try:
-                UpdateVersionManifest(self.version).run_complete()
-            except TaskError as e:
-                if e.message == "version_not_found":
-                    raise TaskError("version_not_found") #type: ignore
-                else:
-                    raise TaskError("failed_to_update_version_manifest", e.data) #type: ignore
+                message = progress_queue.get()
+            except Empty:
+                continue
 
-        yield StepFinished("analyze_download_files")
+            if message.type == "finished":
+                current_downloaders.remove(downloaders[message.id])
+
+            thread: int = -1
+            for i, downloader in enumerate(current_downloaders):
+                if downloader.id == message.id:
+                    thread = i
+                    break
+            
+            yield StepUpdate("download_progress", {
+                            "id": message.id,
+                            "thread": thread,
+                            "type": message.type,
+                            "data": message.data
+                        })
 
 
-        version_info = MCVersions.get_or_none(MCVersions.version == self.version)
-        if version_info is None:
-            raise TaskError("version_not_found")
 
-        version_data: VersionManifest = VersionManifest(version_info.data)
-
-
-        
-                
+          
 class InstancesService:
     def __init__(self):
         self.update_versions_index = UpdateVersionsIndex
 
         self.fetch_version_manifest = UpdateVersionManifest
+
+        self.install_instance = InstallInstance

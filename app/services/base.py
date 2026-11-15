@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
-from typing import Any, Union, Generator, Generic, TypeVar
-
+from typing import Any,  Generic, TypeVar, cast
+from collections.abc import Generator
 
 
 @dataclass
@@ -18,14 +18,14 @@ class StepFinished:
 
 class TaskError(Exception):
     def __init__(self, message: str, data: dict[str, Any] | None = None):
-        self.message = message
-        self.data = data
+        self.message: str = message
+        self.data: dict[str, Any] | None = data
 
         super().__init__(message)
 
 
 
-Event = Union[StepUpdate, StepFinished]
+Event = StepUpdate | StepFinished
 
 T = TypeVar("T")
 
@@ -37,10 +37,10 @@ class Task(Generic[T]):
 
         try:
             while True:
-                next(task)
+                _ = next(task)
 
         except StopIteration as e:
-            return e.value
+            return cast(T, e.value)
 
         finally:
             task.close()

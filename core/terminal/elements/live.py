@@ -5,10 +5,13 @@
 from queue import Queue, Empty
 from enum import Enum, auto
 from threading import Event
+import time
+from datetime import datetime, timedelta
 
 from .base import BaseElement
 from .element import Element
 from ..control import Cursor
+from ...utils.format import format_size, td_to_hms
 
 STOP_SIGNAL = sentinel("STOP_SIGNAL")
 
@@ -140,6 +143,51 @@ class Spinner(LiveElement):
             Cursor.overwrite(f"{chars[self.index]} {self.text}")
             self.index += 1
 
+
+PROGRESS_CHAR = '█'
+NULL_CHAR = '░'
         
+class DownloadProgress(LiveElement):
+    def __init__(self, output_queue: Queue[Element | None], progress: int, total: int):
+        super().__init__(output_queue)
+
+        self.progress = progress
+        self.total = total
+
+        self.progress_length = 20
+
+        self.speed = 0
+        self.duration_progress = 0
+        self.last_update_time = time.time()
+
+
+    def add_progress(self, progress: int):
+        self.progress += progress
+        self.duration_progress += progress
+
         
 
+    def update(self) -> None | STOP_SIGNAL:
+
+        progress_length = min(int(self.progress / self.total * self.progress_length), self.progress_length)
+        null_length = self.progress_length - progress_length
+
+        if time.time() - self.last_update_time > 1:
+            self.speed = self.duration_progress / (time.time() - self.last_update_time)
+
+            self.last_update_time = time.time()
+            self.duration_progress = 0
+
+        try:
+            etc = timedelta(seconds=(self.total - self.progress) / self.speed)
+            
+            etc_text = f"{td_to_hms(etc)}"
+            
+        except ZeroDivisionError:
+            etc_text = "计算中"
+
+        Cursor.overwrite(f"{PROGRESS_CHAR*progress_length}{NULL_CHAR*null_length} {format_size(self.progress)} / {format_size(self.total)} {format_size(self.speed)}/s {etc_text}")
+        
+
+        
+        

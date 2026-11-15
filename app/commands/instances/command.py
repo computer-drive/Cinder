@@ -1,11 +1,14 @@
-from typing import Annotated
+from typing import Annotated, cast, Any
+from threading import Event
 
 lazy from requests.exceptions import RequestException
 
 from core.arguments import Parser, Argument
 from core.terminal.console import Console
+from core.terminal.elements.live import DownloadProgress
+from core.utils.format import format_size
 
-from ...services.base import TaskError, StepUpdate
+from ...services.base import TaskError, StepUpdate, StepFinished
 from ...services.instances.instances import InstancesService
 
 instances = Parser("instances", "管理 Minecraft 实例")
@@ -62,7 +65,7 @@ def fetch_version_manifest(
 ):
     console = Console.get_instance()
 
-    spinner = console.spinner(f"正在获取版本清单数据...")
+    spinner = console.spinner(f"正在获取 {version} 的清单数据...")
     spinner.loading1()
 
     task = InstancesService().fetch_version_manifest(version)
@@ -78,6 +81,16 @@ def fetch_version_manifest(
                 if event.step == "version_data_already_fetched":
                     console.println(f"版本 {version} 的数据已经获取过了。")
                     is_fetched = True
+                elif event.step == "fetch_manifest.cache":
+                    console.success("成功获取清单数据（命中缓存）。")
+                elif event.step == "fetch_manifest.network":
+                    console.success("成功获取清单数据。")
+                elif event.step == "libraries.unused":
+                    console.warning(f"库 {event.data['library_name']} 未被使用。")
+
+            else:
+                if event.step == "analyze_manifest":
+                    spinner.set_text("正在分析数据...")
 
     except StopIteration as e:
         if not is_fetched:
@@ -92,6 +105,14 @@ def fetch_version_manifest(
         if e.message == "version_not_found":
             console.error(f"版本 {version} 不存在。")
             console.println("若你确定版本存在，请先运行 instances:update 命令。")
+        elif e.message == "native_library.platform_not_supported":
+            e.data = cast(dict[str, Any], e.data)
+
+            console.error(f"本地（Native）库 {e.data['library_name']} 在当前平台上不可用（支持的平台：{"，".join(e.data['supported_platforms'])}）")
+
+        elif e.message == "unknown_manifest_type":
+            console.error(f"解析清单数据失败。{e.data["message"] if e.data else '未知错误'}")
+
 
         spinner.error("获取失败。")
 
@@ -100,17 +121,51 @@ def fetch_version_manifest(
 
         spinner.error("获取失败")
 
-@instances.command("test")
-def test():
-    from ...database.model import MCVersions
-    from ...database import use_database
 
-    db = use_database(MCVersions)
+@instances.command("install", "安装一个 Minecraft 实例")
+def install_instance(
+    version: Annotated[str, Argument("-v", "--version", help="要安装的版本")]
+):
+    console = Console.get_instance()
 
-    versions = [v.version for v in MCVersions.select()]
+    service = InstancesService()
 
-    for v in versions:
-        fetch_version_manifest(v)
+    spinner = console.spinner(f"正在准备安装 {version}...")
+
+    stop_event = Event()
+
+
+    task = service.install_instance(version, stop_event)
+    gen = task.run()
+
+    
+
+    try:
+        while True:
+            event = next(gen)
+
+            if isinstance(event, StepFinished):
+                if event.step == "downloading":
+                    spinner.finish("准备完成。")
+
+                    if not console.confirm(f"将会下载 {event.data["count"]} 个文件，共 {format_size(event.data['total_size'])} ，是否继续？"):
+                        break
+                    
+                    download_progress = DownloadProgress(console.output_queue, 0, event.data["total_size"])
+                    console.put(download_progress)
+
+            else:
+                # print(event)
+                if event.step == "download_progress" and event.data["type"] == "progress":
+                    download_progress.add_progress(event.data["data"]["new_size"])
+
+
+    except StopIteration as e:
+        console.println(f"成功安装版本 {version}。")
+
+    finally:
+        gen.close()
+        
         
 
 

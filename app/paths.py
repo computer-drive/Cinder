@@ -44,13 +44,17 @@ class Paths:
         return self.data / "instances" # 实例的jar文件
 
     @property
+    def natives(self):
+        return self.instances / "natives" # 共享natives
+
+    @property
     def gamedata(self):
         return self.data / "gamedata" # 游戏数据
 
     def ensure(self):
         '''确保所有路径存在，若不存在则会创建'''
         for path in [self.config, self.cache, self.libraries,
-                self.assets, self.mods, self.instances, self.gamedata]:
+                self.assets, self.mods, self.instances, self.natives, self.gamedata]:
             path.mkdir(parents=True, exist_ok=True)
 
         return self

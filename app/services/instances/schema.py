@@ -37,11 +37,13 @@ class _OSRule(BaseModel):
     arch: str | None = None
     name: str | None = None
 
-class _Rule(BaseModel):
+class Rule(BaseModel):
     action: Literal["allow", "disallow"]
 
     os: _OSRule | None = None
     features: dict[str, bool] | None = None
+
+
 
 
 class _Context:
@@ -89,8 +91,7 @@ class _Context:
         self.arch = "x86" if struct.calcsize("P") * 8 == 32 else "x86_64"
 
 
-
-def match_rules(rules: list[_Rule], features: dict[str, bool]) -> bool:
+def match_rules(rules: list[Rule], features: dict[str, bool]) -> bool:
     '''判断是否符合规则'''
 
     ctx = _Context()
@@ -101,7 +102,7 @@ def match_rules(rules: list[_Rule], features: dict[str, bool]) -> bool:
     if not rules:
         return True
 
-    def match(rule: _Rule) -> bool:
+    def match(rule: Rule) -> bool:
         conform = True
         if rule.os:
             
@@ -143,8 +144,6 @@ def match_rules(rules: list[_Rule], features: dict[str, bool]) -> bool:
     return finally_allow
 
 
-
-
 class VersionManifestV2(BaseModel):
     '''新版本的MC版本清单格式'''
 
@@ -153,7 +152,7 @@ class VersionManifestV2(BaseModel):
         '''版本清单的参数'''
 
         class _ArgumentRules(BaseModel):
-            rules: list[_Rule]
+            rules: list[Rule]
             value: str | list[str]
 
         game: list[str | _ArgumentRules]
@@ -207,13 +206,13 @@ class VersionManifestV2(BaseModel):
 
             artifact: _DownloadInfo | None
 
-            classifiers: dict[str, _DownloadInfo] | None
+            classifiers: dict[str, _DownloadInfo] | None = None
 
         downloads: '_LibraryDownload'
 
         name: str
 
-        rules: list[_Rule] | None = None
+        rules: list[Rule] | None = None
 
         natives: dict[str, str] | None = None
 

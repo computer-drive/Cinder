@@ -11,7 +11,9 @@ def use_database(*models: type[BaseModel]) -> SqliteDatabase:
     global database
 
     if database is None:
-        database = SqliteDatabase(str(paths.userdata_db))
+        database = SqliteDatabase(str(paths.userdata_db),  pragmas={
+        'foreign_keys': 1,
+        })
 
         database.connect()
 

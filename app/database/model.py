@@ -71,7 +71,7 @@ class MCVersions(BaseModel):
     sha1 = CharField() # 版本数据的哈希
     is_safety = BooleanField() # 对应版本索引的complianceLevel键，1=true, 0=false
 
-    assets = ForeignKeyField(MCAssetsIndex, backref='tweets', null=True)
+    assets = ForeignKeyField(MCAssetsIndex, backref='+', null=True)
 
     main_class = CharField(null=True) # 版本的主类
     
@@ -118,13 +118,18 @@ class MCLibraries(BaseModel):
             (('version', 'maven_path'), True),  # 对于一个版本，应该只出现一个支持库
         )
 
-    version = ForeignKeyField(MCVersions, backref="tweets")
+    version = ForeignKeyField(MCVersions, backref="+")
 
     maven_path = CharField()
 
     sha1 = CharField()
     size = IntegerField()
     url = CharField()
+
+    rules = JSONField(null=True)
+
+    is_native = BooleanField(default=False)
+
 
 
     name = CharField()
@@ -135,7 +140,7 @@ class MCArguments(BaseModel):
             table_name = "meta:mc_arguments"
 
 
-    version = ForeignKeyField(MCVersions, backref="tweets", primary_key=True)
+    version = ForeignKeyField(MCVersions, backref="+", primary_key=True)
 
     jvm = JSONField(null=True)
 
@@ -153,7 +158,7 @@ class MCAssetsObjects(BaseModel):
 
     id = AutoField()
 
-    assets_index = ForeignKeyField(MCAssetsIndex, backref="tweets")
+    assets_index = ForeignKeyField(MCAssetsIndex, backref="+")
 
     name = CharField()
 
