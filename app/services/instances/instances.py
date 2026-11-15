@@ -313,7 +313,7 @@ class UpdateMessage(TypedDict):
 
 
 
-
+THREAD_COUNT = 16
 
 # ! WIP
 class InstallInstance(Task[dict[str, Any]]):
@@ -503,7 +503,7 @@ class InstallInstance(Task[dict[str, Any]]):
                 # downloader_queue.task_done()
         
         
-        threads = [Thread(target=worker, args=(downloader_queue, stop_event)) for _ in range(16)]
+        threads = [Thread(target=worker, args=(downloader_queue, stop_event)) for _ in range(THREAD_COUNT)]
 
         for thread in threads: thread.start()
 
@@ -514,7 +514,7 @@ class InstallInstance(Task[dict[str, Any]]):
         while True:
             
 
-            while len(current_downloaders) < 16:
+            while len(current_downloaders) < THREAD_COUNT:
                 if not downloaders_list:
                     break
                     
@@ -531,7 +531,7 @@ class InstallInstance(Task[dict[str, Any]]):
 
 
             try:
-                message = progress_queue.get()
+                message = progress_queue.get(timeout=0.1)
             except Empty:
                 continue
 
