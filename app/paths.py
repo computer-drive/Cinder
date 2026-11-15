@@ -45,7 +45,7 @@ class Paths:
 
     @property
     def natives(self):
-        return self.instances / "natives" # 共享natives
+        return self.libraries / "natives" # 共享natives
 
     @property
     def gamedata(self):
