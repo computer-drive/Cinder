@@ -138,7 +138,7 @@ def install_instance(
     task = service.install_instance(version, stop_event)
     gen = task.run()
 
-    
+    download_progress = DownloadProgress(console.output_queue, 0, 0)
 
     try:
         while True:
@@ -151,17 +151,31 @@ def install_instance(
                     if not console.confirm(f"将会下载 {event.data["count"]} 个文件，共 {format_size(event.data['total_size'])} ，是否继续？"):
                         break
                     
-                    download_progress = DownloadProgress(console.output_queue, 0, event.data["total_size"])
+                    download_progress.set_total(event.data["total_size"])
                     console.put(download_progress)
 
+                elif event.step == "canceling":
+                    download_progress.stop()
+    
+                    console.error("用户取消了下载操作，正在执行清理操作...")
+    
+                    continue
+            
+                elif event.step == "canceled":
+                    console.println("清理完成。")
+
+                    break
+
             else:
-                # print(event)
                 if event.step == "download_progress" and event.data["type"] == "progress":
                     download_progress.add_progress(event.data["data"]["new_size"])
 
+            
+    
 
-    except StopIteration as e:
+    except StopIteration:
         console.println(f"成功安装版本 {version}。")
+
 
     finally:
         gen.close()

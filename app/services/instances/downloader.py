@@ -39,7 +39,7 @@ class Downloader:
     def run(self):
         download_size = 0
         try:
-            response = requests.get(self.url, stream=True)
+            response = requests.get(self.url, stream=True, timeout=5)
 
             total = int(response.headers.get("Content-Length", 0))
 
@@ -84,14 +84,17 @@ class Downloader:
             self.queue.put(DownloadMessage(self.id, "canceled"))
 
         else:
+            if self.sha1 is not None:
+                # 校验sha1
+                with open(self.path, "rb") as f:
+                    sha1 = hashlib.sha1(f.read()).hexdigest()
+                    if sha1 != self.sha1:
+                        self.queue.put(DownloadMessage(self.id, "verify_error"))
+
+
             self.queue.put(DownloadMessage(self.id, "finished"))
 
-        if self.sha1 is not None:
-            # 校验sha1
-            with open(self.path, "rb") as f:
-                sha1 = hashlib.sha1(f.read()).hexdigest()
-                if sha1 != self.sha1:
-                    self.queue.put(DownloadMessage(self.id, "verify_error"))
+        
 
             
 

@@ -154,20 +154,31 @@ class DownloadProgress(LiveElement):
         self.progress = progress
         self.total = total
 
-        self.progress_length = 20
+        self.progress_length = 50
 
         self.speed = 0
         self.duration_progress = 0
         self.last_update_time = time.time()
+
+        self.is_stop: bool = False
 
 
     def add_progress(self, progress: int):
         self.progress += progress
         self.duration_progress += progress
 
+    def set_total(self, total: int):
+        self.total = total
+
+    def stop(self):
+        self.is_stop = True
+
         
 
     def update(self) -> None | STOP_SIGNAL:
+        if self.is_stop:
+            Cursor.println("")
+            return STOP_SIGNAL
 
         progress_length = min(int(self.progress / self.total * self.progress_length), self.progress_length)
         null_length = self.progress_length - progress_length
@@ -186,7 +197,7 @@ class DownloadProgress(LiveElement):
         except ZeroDivisionError:
             etc_text = "计算中"
 
-        Cursor.overwrite(f"{PROGRESS_CHAR*progress_length}{NULL_CHAR*null_length} {format_size(self.progress)} / {format_size(self.total)} {format_size(self.speed)}/s {etc_text}")
+        Cursor.overwrite(f"{PROGRESS_CHAR*progress_length}{NULL_CHAR*null_length} {format_size(self.progress)} / {format_size(self.total)}  {format_size(self.speed)}/s  {etc_text}")
         
 
         

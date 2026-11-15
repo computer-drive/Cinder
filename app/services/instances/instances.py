@@ -40,7 +40,6 @@ class VersionIndexManifest(BaseModel):
     def versions_map(self) -> dict[str, _Version]:
         return {v.id: v for v in self.versions}
 
-
 class UpdateVersionsIndex(Task[dict[str, Any]]):
     '''更新mc版本索引清单'''
     def __init__(self):
@@ -303,14 +302,10 @@ class UpdateVersionManifest(Task[dict[str, Any]]):
             raise TaskError("unknown_manifest_type", {
                 "message": "未知的清单类型。",
             })
-
-        
-
-        
+       
 class UpdateMessage(TypedDict):
     type: str
     data: dict[str, Any]
-
 
 
 THREAD_COUNT = 16
@@ -324,6 +319,10 @@ class InstallInstance(Task[dict[str, Any]]):
         ASSETS_NOT_FOUND = "assets_not_found"
         DOWNLOADING = "downloading"
 
+        CANCELED = "canceled"
+
+        CANCELING = "canceling"
+
 
     def __init__(self, version: str, stop_event: Event):
         self.version: str = version
@@ -333,7 +332,6 @@ class InstallInstance(Task[dict[str, Any]]):
 
         self.exist_assets: list[MCAssetsObjects] = []
         self.exist_libraries: list[MCLibraries] = []
-
 
     def get_not_exist_assets(self, all_objects: list[MCAssetsObjects]):
         # 先查询所有的objects
@@ -380,7 +378,6 @@ class InstallInstance(Task[dict[str, Any]]):
 
         return not_exist_libraries, exist_libraries
 
-    
     def run(self):
         version_info: MCVersions | None = MCVersions.get_or_none(version=self.version)
 
@@ -393,7 +390,7 @@ class InstallInstance(Task[dict[str, Any]]):
         total_size: int = 0
         downloaders : dict[int, Downloader] = {}
 
-        stop_event = Event()
+        stop_event = self.stop_event
         progress_queue: Queue[DownloadMessage] = Queue()
 
         # TODO: client的下载，需要先判断是否已经存在
@@ -472,7 +469,7 @@ class InstallInstance(Task[dict[str, Any]]):
                     "libraries",
                     library.url,
                     library.sha1,
-                    paths.instances / (library.name + ".jar"),
+                    paths.libraries / (library.name + ".jar"),
                     progress_queue
                 )
                 
@@ -500,57 +497,72 @@ class InstallInstance(Task[dict[str, Any]]):
 
                 downloader.run()
 
-                # downloader_queue.task_done()
+                downloader_queue.task_done()
         
         
-        threads = [Thread(target=worker, args=(downloader_queue, stop_event)) for _ in range(THREAD_COUNT)]
+        threads: list[Thread] = [Thread(target=worker, args=(downloader_queue, stop_event)) for _ in range(THREAD_COUNT)]
 
-        for thread in threads: thread.start()
+        for t in threads:
+            t.start()
 
         current_downloaders: list[Downloader] = []
 
         downloaders_list = list(downloaders.values())
 
-        while True:
-            
 
-            while len(current_downloaders) < THREAD_COUNT:
-                if not downloaders_list:
-                    break
+        try:
+            while True:
+                #region
+                while len(current_downloaders) < THREAD_COUNT:
+                    if not downloaders_list:
+                        break
+                        
+                    new_downloader = downloaders_list.pop(0)
                     
-                new_downloader = downloaders_list.pop(0)
-                
-                current_downloaders.append(new_downloader)
+                    current_downloaders.append(new_downloader)
 
-                downloader_queue.put(new_downloader)
+                    downloader_queue.put(new_downloader)
 
-                yield StepUpdate("new_download_started", {
-                    "thread": current_downloaders.index(new_downloader),
-                    "id": new_downloader.id,
-                })
+                    yield StepUpdate("new_download_started", {
+                        "thread": current_downloaders.index(new_downloader),
+                        "id": new_downloader.id,
+                    })
 
 
-            try:
-                message = progress_queue.get(timeout=0.1)
-            except Empty:
-                continue
+                try:
+                    message = progress_queue.get(timeout=0.1)
+                except Empty:
+                    continue
 
-            if message.type == "finished":
-                current_downloaders.remove(downloaders[message.id])
+                if message.type == "finished":
+                    current_downloaders.remove(downloaders[message.id])
 
-            thread: int = -1
-            for i, downloader in enumerate(current_downloaders):
-                if downloader.id == message.id:
-                    thread = i
-                    break
+                thread: int = -1
+                for i, downloader in enumerate(current_downloaders):
+                    if downloader.id == message.id:
+                        thread = i
+                        break
+
+        
+                yield StepUpdate("download_progress", {
+                                "id": message.id,
+                                "thread": thread,
+                                "type": message.type,
+                                "data": message.data
+                            })
+
+                #endregion
+
+        except KeyboardInterrupt:
+            stop_event.set()
+
+
+            yield StepFinished(self.State.CANCELING.value)
             
-            yield StepUpdate("download_progress", {
-                            "id": message.id,
-                            "thread": thread,
-                            "type": message.type,
-                            "data": message.data
-                        })
-
+            for t in threads:
+                t.join()
+            
+            yield StepFinished(self.State.CANCELED.value, {})
 
 
           
