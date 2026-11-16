@@ -255,7 +255,7 @@ class Progress(LiveElement):
         progress_length = min(int(self.progress / self.total * self.progress_length), self.progress_length)
         null_length = self.progress_length - progress_length
 
-        Cursor.overwrite(f"{self.text} {PROGRESS_CHAR*progress_length}{NULL_CHAR*null_length} {self.progress}/{self.total}")
+        Cursor.overwrite(f"{self.text} {PROGRESS_CHAR*progress_length}{NULL_CHAR*null_length} {self.progress} / {self.total}")
 
         if self.is_stop:
             Cursor.println("")

@@ -4,9 +4,15 @@ import time
 from core.terminal.startup import startup
 from core.terminal.control.style import Style, Fore
 from core.arguments import Parser
+from core.utils.memory import tune_malloc
 
 from app.paths import Paths
 lazy from app.commands import parsers
+
+# 调整 malloc 行为
+tune_malloc()
+
+
 
 # 启动渲染
 console = startup()

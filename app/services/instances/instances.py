@@ -376,7 +376,8 @@ class InstallInstance(Task[dict[str, Any]]):
                 exist_assets.append(obj)
             else:
                 not_exist_assets.append(obj)
-        
+
+
         return not_exist_assets, exist_assets
 
     def get_not_exist_libraries(self, all_libraries: list[MCLibraries]):
@@ -745,14 +746,13 @@ class InstallInstance(Task[dict[str, Any]]):
                     LibrariesReference.create(
                         library_file=Files.get(sha1=reference.sha1),
                         instance=instance,
-                        library=reference.meta,
+                        library=MCLibraries.get(sha1=reference.sha1, version=version_info),
                     )
                 elif reference.kind == "assets":
-
                     AssetsReference.create(
                         asset_file=Files.get(sha1=reference.sha1),
                         instance=instance,
-                        asset=reference.meta,
+                        asset=MCAssetsObjects.get(hash=reference.sha1, assets_index=version_info.assets),
                     )
                 elif reference.kind == "client":
                     pass

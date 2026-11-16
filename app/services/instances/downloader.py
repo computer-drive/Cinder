@@ -16,6 +16,8 @@ class DownloadMessage:
 class Canceled(Exception):
     pass
 
+CHUNK_SIZE = 256 * 1024 # 256KB
+
 class Downloader:
     def __init__(self,
                 stop_event: Event,
@@ -35,8 +37,6 @@ class Downloader:
         self.sha1:       str | None             = sha1
 
         
-
-
         
     def run(self, session: requests.Session | None):
         download_size = 0
@@ -54,7 +54,7 @@ class Downloader:
 
             with open(self.path, "wb") as f:
                 
-                for chunk in response.iter_content(chunk_size= 1024 * 1024): # 16KB
+                for chunk in response.iter_content(chunk_size= CHUNK_SIZE):
 
                     if self.stop_event.is_set():
                         raise Canceled()

@@ -223,6 +223,7 @@ def install_instance(
     except StopIteration as e:
         if e.value:
             buildref_progress.stop()
+            
             console.println(f"成功安装版本 {version}。")
 
     except TaskError as e:
