@@ -354,7 +354,6 @@ class InstallInstance(Task[dict[str, Any]]):
         self.references: list[_Reference] = []
         self.references_map: dict[str, _Reference] = {}
 
-        self.references_file: dict[str, Files] = {}
 
     def get_not_exist_assets(self, all_objects: list[MCAssetsObjects]):
         # 先查询所有的objects
@@ -480,14 +479,10 @@ class InstallInstance(Task[dict[str, Any]]):
             .where(MCLibraries.version == version_info)
         ))
 
-        self.references.extend(
-            [_Reference(kind="library", sha1=lib.sha1, meta=lib) 
-            for lib in not_exist_libraries + self.exist_libraries
-        ])
-
+    
         rule_adapter = TypeAdapter(list[Rule])
 
-        for library in not_exist_libraries:
+        for library in not_exist_libraries + self.exist_libraries:
             count += 1
             
             if library.rules is not None:
@@ -495,37 +490,45 @@ class InstallInstance(Task[dict[str, Any]]):
                 if not match_rules(rule_adapter.validate_python(library.rules), {}):
                     # 不符合跳过
                     continue
-
-            if library.is_native:
-                downloaders[count] = Downloader(
-                    stop_event,
-                    count,
-                    "libraries",
-                    library.url,
-                    library.sha1,
-                    paths.natives / (path_legalize(library.name) + ".jar"),
-                    progress_queue
-                )
-
-                total_size += library.size
-            else:
-                downloaders[count] = Downloader(
-                    stop_event,
-                    count,
-                    "libraries",
-                    library.url,
-                    library.sha1,
-                    paths.libraries / (path_legalize(library.name) + ".jar"),
-                    progress_queue
-                )
+            
+            if library in not_exist_libraries:
                 
-                total_size += library.size
+                if library.is_native:
+                    downloaders[count] = Downloader(
+                        stop_event,
+                        count,
+                        "libraries",
+                        library.url,
+                        library.sha1,
+                        paths.natives / (path_legalize(library.name) + ".jar"),
+                        progress_queue
+                    )
+
+                    total_size += library.size
+                else:
+                    downloaders[count] = Downloader(
+                        stop_event,
+                        count,
+                        "libraries",
+                        library.url,
+                        library.sha1,
+                        paths.libraries / (path_legalize(library.name) + ".jar"),
+                        progress_queue
+                    )
+                    
+                    total_size += library.size
+
+            self.references.append(
+                _Reference(kind="library", sha1=library.sha1, meta=library)
+            )
+
         #endregion
         
-        # TODO: 日志config的xml下载
+        # 日志config的xml下载
         logging_file = VersionManifestV2._Logging._Client._File(**version_info.logging_file)
 
         if Files.get_or_none(sha1=logging_file.sha1) is None:
+            count += 1
             downloaders[count] = Downloader(
                 stop_event,
                 count,
@@ -551,26 +554,27 @@ class InstallInstance(Task[dict[str, Any]]):
             def worker(downloader_queue: Queue[Downloader], stop_event: Event):
                 session = requests.Session()
 
-                while True:
-                    if stop_event.is_set():
-                        break
-                    
-                    try:
-                        downloader = downloader_queue.get(timeout=0.1)
-                    except Empty:
-                        continue
+                try:
+                    while True:
+                        if stop_event.is_set():
+                            break
+                        
+                        try:
+                            downloader = downloader_queue.get(timeout=0.1)
+                        except Empty:
+                            continue
 
-                    downloader.run(session)
+                        downloader.run(session)
 
-                    downloader_queue.task_done()
+                        downloader_queue.task_done()
+                finally:
+                    session.close()
 
             def writer_worker(writer_database_queue: Queue[Files], stop_event: Event):
                 buffer: list[Files] = []
 
 
                 while True:
-                    if stop_event.is_set():
-                        break
                     
                     try:
                         file = writer_database_queue.get(timeout=0.1)
@@ -579,7 +583,8 @@ class InstallInstance(Task[dict[str, Any]]):
 
                 
                     buffer.append(file)
-
+                    
+                    # 批量写入数据库
                     if len(buffer) >= 50 or stop_event.is_set():
                         try:
                             with Files._meta.database.atomic():
@@ -591,19 +596,12 @@ class InstallInstance(Task[dict[str, Any]]):
                             for file in buffer:
                                 print(file.path, file.sha1)
 
-                        # 如果写入成功，就更新references_file
-                        self.references_file[file.sha1] = file
-
-                        # for file in buffer:
-                        #     try:
-                        #         Files.create(**model_to_dict(file))
-                        #     except Exception as e:
-                        #         print("Error: ", e)
-                        #         print(file.path, file.sha1)
-
 
 
                         buffer.clear()
+
+                        if stop_event.is_set() and writer_database_queue.empty():
+                            break
                     
                     
                     writer_database_queue.task_done()

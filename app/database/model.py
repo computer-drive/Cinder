@@ -119,7 +119,7 @@ class MCLibraries(BaseModel):
     class Meta:
         table_name = "meta:mc_libraries"
 
-        indexs = (
+        indexes = (
             (('version', 'maven_path'), True),  # 对于一个版本，应该只出现一个支持库
         )
 
@@ -156,7 +156,7 @@ class MCAssetsObjects(BaseModel):
     class Meta:
         table_name = "meta:mc_assets_objects"
 
-        indexs = (
+        indexes = (
             (('assets_index', 'name'), True),  # 对于一个索引，应该只出现一个object
 
         )
@@ -197,7 +197,7 @@ class Instances(BaseModel):
 class AssetsReference(BaseModel):
     class Meta:
         table_name = "assets_reference"
-        indexs = (
+        indexes = (
             (('version', 'asset_file'), True),  # 同一个版本，应该只出现一个资源文件的引用
         )
 
@@ -214,7 +214,7 @@ class AssetsReference(BaseModel):
 class LibrariesReference(BaseModel):
     class Meta:
         table_name = "libraries_reference"
-        indexs = (
+        indexes = (
             (('version', 'library_file'), True),  # 同一个版本，应该只出现一个支持库的引用
         )
 

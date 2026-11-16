@@ -5,7 +5,7 @@ import ctypes.util
 # * AI Generated
 def tune_malloc():
     '''
-    """限制 glibc 的多线程堆行为，防止长时间下载时 RSS 持续上涨。
+    限制 glibc 的多线程堆行为，防止长时间下载时 RSS 持续上涨。
 
     glibc 的 malloc 是「每线程一个 arena」的多仓库设计：线程第一次分配时
     绑定一个 arena，之后都从自己的分仓切内存，减少全局锁竞争。默认上限是

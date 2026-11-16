@@ -46,37 +46,35 @@ class Downloader:
             session = requests.Session()
 
         try:
-            response = session.get(self.url, stream=True, timeout=5)
+            with session.get(self.url, stream=True, timeout=5) as response:
 
-            total = int(response.headers.get("Content-Length", 0))
+                total = int(response.headers.get("Content-Length", 0))
 
-            response.raise_for_status()
+                response.raise_for_status()
 
-            with open(self.path, "wb") as f:
-                
-                for chunk in response.iter_content(chunk_size= CHUNK_SIZE):
-
-                    if self.stop_event.is_set():
-                        raise Canceled()
-
-                    f.write(chunk)
-
-                    download_size += len(chunk)
+                with open(self.path, "wb") as f:
                     
-                    self.queue.put(
-                        DownloadMessage(
-                            self.id, "progress",
-                            {
-                                "download_size": download_size,
-                                "new_size": len(chunk),
-                                "total": total,
-                            }
+                    for chunk in response.iter_content(chunk_size= CHUNK_SIZE):
+
+                        if self.stop_event.is_set():
+                            raise Canceled()
+
+                        f.write(chunk)
+
+                        download_size += len(chunk)
+                        
+                        self.queue.put(
+                            DownloadMessage(
+                                self.id, "progress",
+                                {
+                                    "download_size": download_size,
+                                    "new_size": len(chunk),
+                                    "total": total,
+                                }
+                            )
                         )
-                    )
 
-            response.close()
-
-
+        
         except Exception as e:
             is_error = True
             if not isinstance(e, Canceled):
@@ -94,7 +92,7 @@ class Downloader:
             if self.sha1 is not None:
                 # 校验sha1
                 with open(self.path, "rb") as f:
-                    sha1 = hashlib.sha1(f.read()).hexdigest()
+                    sha1 = hashlib.file_digest(f, "sha1").hexdigest()
                     if sha1 != self.sha1:
                         self.queue.put(DownloadMessage(self.id, "verify_error"))
                         is_error = True
