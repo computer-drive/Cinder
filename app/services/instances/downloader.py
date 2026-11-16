@@ -72,18 +72,18 @@ class Downloader:
                     )
 
 
-        except requests.RequestException as e:
+        except Exception as e:
             is_error = True
-            self.queue.put(DownloadMessage(
-                self.id, "download_error",
-                {
-                    "message": str(e) 
-                }
-            ))
+            if not isinstance(e, Canceled):
+                
+                self.queue.put(DownloadMessage(
+                    self.id, "download_error",
+                    {
+                        "message": str(e) 
+                    }
+                ))
 
-        
-        except Canceled:
-            is_error = True
+    
     
         else:
             if self.sha1 is not None:
@@ -92,18 +92,20 @@ class Downloader:
                     sha1 = hashlib.sha1(f.read()).hexdigest()
                     if sha1 != self.sha1:
                         self.queue.put(DownloadMessage(self.id, "verify_error"))
+                        is_error = True
+                    
+        finally: 
+            # 删除半成品文件
+            if is_error:
+                if self.path.exists():
+                    self.path.unlink()
 
+                self.queue.put(DownloadMessage(self.id, "canceled"))
 
-            self.queue.put(DownloadMessage(self.id, "finished", {
-                "size": download_size,
-            }))
-
-        # 删除半成品文件
-        if is_error:
-            if self.path.exists():
-                self.path.unlink()
-
-            self.queue.put(DownloadMessage(self.id, "canceled"))
+            else:
+                self.queue.put(DownloadMessage(self.id, "finished", {
+                                "size": download_size,
+                            }))
 
         
 
