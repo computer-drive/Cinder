@@ -145,9 +145,9 @@ def install_instance(
     task = service.install_instance(version, stop_event)
     gen = task.run()
 
-    download_progress = DownloadProgress(console.output_queue, 0, 0)
+    download_progress = DownloadProgress(console.output_queue, 0, 0, "下载文件")
 
-    buildref_progress = Progress(console.output_queue, 0, 0)
+    buildref_progress = Progress(console.output_queue, 0, 0, "构建引用")
 
     try:
         while True:
@@ -177,10 +177,23 @@ def install_instance(
                     break
 
                 elif event.step == "building_references":
-                    console.println("正在构建引用...")
-                    
+
                     buildref_progress.set_total(event.data["total"])
                     console.put(buildref_progress)
+
+                elif event.step == "download_already_finished":
+
+                    download_progress.stop()
+
+
+                    console.println("需要的文件已经下载过了。")
+
+                elif event.step == "download_all_finished":
+
+                    download_progress.stop()
+
+
+
 
 
 

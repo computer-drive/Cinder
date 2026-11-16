@@ -148,11 +148,12 @@ PROGRESS_CHAR = '█'
 NULL_CHAR = '░'
         
 class DownloadProgress(LiveElement):
-    def __init__(self, output_queue: Queue[Element | None], progress: int, total: int):
+    def __init__(self, output_queue: Queue[Element | None], progress: int, total: int, text: str = ""):
         super().__init__(output_queue)
 
         self.progress = progress
         self.total = total
+        self.text = text
 
         self.progress_length = 50
 
@@ -208,16 +209,17 @@ class DownloadProgress(LiveElement):
         except ZeroDivisionError:
             etc_text = "计算中"
 
-        Cursor.overwrite(f"{PROGRESS_CHAR*progress_length}{NULL_CHAR*null_length} {format_size(self.progress)} / {format_size(self.total)}  {format_size(self.speed)}/s  {etc_text}")
+        Cursor.overwrite(f"{self.text} {PROGRESS_CHAR*progress_length}{NULL_CHAR*null_length} {format_size(self.progress)} / {format_size(self.total)}  {format_size(self.speed)}/s  {etc_text}")
         
 
 class Progress(LiveElement):
 
-    def __init__(self, output_queue: Queue[Element | None], progress: int, total: int):
+    def __init__(self, output_queue: Queue[Element | None], progress: int, total: int, text: str = ""):
         super().__init__(output_queue)
 
         self.progress = progress
         self.total = total
+        self.text = text
 
         self.progress_length = 50
 
@@ -254,7 +256,7 @@ class Progress(LiveElement):
         progress_length = min(int(self.progress / self.total * self.progress_length), self.progress_length)
         null_length = self.progress_length - progress_length
 
-        Cursor.overwrite(f"{PROGRESS_CHAR*progress_length}{NULL_CHAR*null_length} {self.progress}/{self.total}")
+        Cursor.overwrite(f"{self.text} {PROGRESS_CHAR*progress_length}{NULL_CHAR*null_length} {self.progress}/{self.total}")
 
         
         

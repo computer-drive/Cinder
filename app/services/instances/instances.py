@@ -349,7 +349,7 @@ class InstallInstance(Task[dict[str, Any]]):
 
         
 
-        self.referneces: list[_Reference] = []
+        self.references: list[_Reference] = []
 
     def get_not_exist_assets(self, all_objects: list[MCAssetsObjects]):
         # 先查询所有的objects
@@ -428,7 +428,7 @@ class InstallInstance(Task[dict[str, Any]]):
             )
             total_size += cast(int, version_info.client_size)
 
-        self.referneces.append(_Reference(kind="client", sha1=cast(str, version_info.client_sha1)))
+        self.references.append(_Reference(kind="client", sha1=cast(str, version_info.client_sha1)))
         #endregion
 
         #region 添加assets下载
@@ -458,7 +458,7 @@ class InstallInstance(Task[dict[str, Any]]):
 
             total_size += asset.size
 
-        self.referneces.extend(
+        self.references.extend(
             [_Reference(kind="assets", sha1=asset.hash) 
             for asset in not_exist_assets + self.exist_assets
         ])
@@ -471,7 +471,7 @@ class InstallInstance(Task[dict[str, Any]]):
             .where(MCLibraries.version == version_info)
         ))
 
-        self.referneces.extend(
+        self.references.extend(
             [_Reference(kind="library", sha1=lib.sha1) 
             for lib in not_exist_libraries + self.exist_libraries
         ])
@@ -680,15 +680,19 @@ class InstallInstance(Task[dict[str, Any]]):
                 })
                 return False
 
-        
+            yield StepFinished("download_all_finished")
+
+        else:
+            yield StepFinished("download_aleady_finished")
+
         # 构建引用关系
         yield StepFinished("building_references", {
-            "total": len(self.referneces),
+            "total": len(self.references),
         })
 
         count = 0
         with self.database.atomic():
-            for reference in self.referneces:
+            for reference in self.references:
                 if reference.kind == "client":
                     Instances.create(
                         name=version_info.version,
@@ -702,11 +706,9 @@ class InstallInstance(Task[dict[str, Any]]):
                         version=version_info
                     )
                 elif reference.kind == "assets":
-                    print(reference.sha1)
-                    file = Files.get(sha1=reference.sha1)
-                    print(file, type(file))
+
                     AssetsReference.create(
-                        assets_file=file,
+                        asset_file=Files.get(sha1=reference.sha1),
                         version=version_info
                     )
                 count += 1

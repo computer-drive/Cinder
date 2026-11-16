@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-def format_size(size: int) -> str:
+def format_size(size: int | float) -> str:
     '''格式化文件大小。'''
     if size < 1024:
         return f"{size} B"
