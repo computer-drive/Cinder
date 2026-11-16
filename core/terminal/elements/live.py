@@ -211,5 +211,50 @@ class DownloadProgress(LiveElement):
         Cursor.overwrite(f"{PROGRESS_CHAR*progress_length}{NULL_CHAR*null_length} {format_size(self.progress)} / {format_size(self.total)}  {format_size(self.speed)}/s  {etc_text}")
         
 
+class Progress(LiveElement):
+
+    def __init__(self, output_queue: Queue[Element | None], progress: int, total: int):
+        super().__init__(output_queue)
+
+        self.progress = progress
+        self.total = total
+
+        self.progress_length = 50
+
+        self.is_stop: bool = False
+
+    def add_progress(self, progress: int):
+        self.progress += progress
+    
+    def set_progress(self, progress: int):
+        self.progress = progress
+
+    def set_total(self, total: int):
+        self.total = total
+
+    def stop(self):
+        self.is_stop = True
+
+    def update(self):
+        if self.is_stop:
+            Cursor.println("")
+            return STOP_SIGNAL
+
+        while not self.output_queue.empty():
+            el = self.output_queue.get_nowait()
+
+            if el is None:
+                self.output_queue.put(None)
+                return STOP_SIGNAL
+            elif isinstance(el, BaseElement):
+                Cursor.print(f"\r{el.get_text()}")
+            else:
+                print("unsupport element")
+        
+        progress_length = min(int(self.progress / self.total * self.progress_length), self.progress_length)
+        null_length = self.progress_length - progress_length
+
+        Cursor.overwrite(f"{PROGRESS_CHAR*progress_length}{NULL_CHAR*null_length} {self.progress}/{self.total}")
+
         
         

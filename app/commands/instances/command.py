@@ -5,7 +5,7 @@ lazy from requests.exceptions import RequestException
 
 from core.arguments import Parser, Argument
 from core.terminal.console import Console
-from core.terminal.elements.live import DownloadProgress
+from core.terminal.elements.live import DownloadProgress, Progress
 from core.utils.format import format_size
 
 from ...services.base import TaskError, StepUpdate, StepFinished
@@ -125,7 +125,7 @@ def fetch_version_manifest(
 @instances.command("install", "安装一个 Minecraft 实例")
 def install_instance(
     version: Annotated[str, Argument("-v", "--version", help="要安装的版本")],
-    update: Annotated[bool, Argument("-u", "--update", help="是否先更新版本索引")]
+    update: Annotated[bool, Argument("-u", "--update", help="是否先更新版本索引", optional=(True, False))]
 ):
     console = Console.get_instance()
 
@@ -146,6 +146,8 @@ def install_instance(
     gen = task.run()
 
     download_progress = DownloadProgress(console.output_queue, 0, 0)
+
+    buildref_progress = Progress(console.output_queue, 0, 0)
 
     try:
         while True:
@@ -174,6 +176,16 @@ def install_instance(
 
                     break
 
+                elif event.step == "building_references":
+                    console.println("正在构建引用...")
+                    
+                    buildref_progress.set_total(event.data["total"])
+                    console.put(buildref_progress)
+
+
+
+                
+
             else:
                 if event.step == "download_progress":
                     if event.data["type"] == "progress":
@@ -186,10 +198,15 @@ def install_instance(
                 elif event.step == "has_error":
                     console.warning(f"共有 {event.data["count"]} 个文件未能下载。")
                     console.warning("已下载的文件未被删除。若想清理这些文件请运行self gc；若想继续安装 Minecraft 请重新运行此命令。")
-
+                    
+                elif event.step == "building_progress":
+                    buildref_progress.set_progress(event.data["finished"])
+                    
                 
-    except StopIteration:
-        console.println(f"成功安装版本 {version}。")
+    except StopIteration as e:
+        if e.value:
+            buildref_progress.stop()
+            console.println(f"成功安装版本 {version}。")
 
     except TaskError as e:
         if e.message == task.State.VERSION_NOT_FOUND.value:

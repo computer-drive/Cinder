@@ -59,7 +59,7 @@ class Downloader:
                     f.write(chunk)
 
                     download_size += len(chunk)
-
+                    
                     self.queue.put(
                         DownloadMessage(
                             self.id, "progress",

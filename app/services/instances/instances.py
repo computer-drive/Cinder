@@ -6,13 +6,17 @@ from queue import Queue, Empty
 import os
 from datetime import datetime
 import json
+from dataclasses import dataclass
 
 lazy from pydantic import BaseModel, ValidationError, computed_field, TypeAdapter
+lazy from playhouse.shortcuts import model_to_dict
 lazy import requests
 
 from ...paths import paths
 from ...database import use_database
-from ...database.model import MCLibraries, MCVersions, MCArguments, MCAssetsIndex, MCAssetsObjects, Files
+from ...database.model import (MCLibraries, LibrariesReference, AssetsReference,
+    MCVersions, MCArguments, MCAssetsIndex, MCAssetsObjects, Files, Instances
+)
 from ..base import Task, StepFinished, StepUpdate, TaskError
 from .schema import VersionManifestV2, AssetsObjects, match_rules, _Context, Rule
 from .downloader import Downloader, DownloadMessage
@@ -185,6 +189,8 @@ class UpdateVersionManifest(Task[dict[str, Any]]):
                 #region 解析libraries
                 libraries = []
 
+                found_artifacts = set()
+
                 for library in manifest.libraries:
                     hit = False
 
@@ -194,13 +200,20 @@ class UpdateVersionManifest(Task[dict[str, Any]]):
                             # 若不符合，则跳过
                             continue
 
-                        
+                
 
                     if library.downloads.artifact is not None:
                         # 若有artifact，则添加到列表，不是native库
                         hit = True
 
+                        # 判断maven_path已经在found_artifacts中
+                        if library.downloads.artifact.path in found_artifacts:
+                            # 若在，则跳过
+                            continue
+
                         
+                        found_artifacts.add(library.downloads.artifact.path)
+
                         libraries.append({
                             "name": library.name,
                             "sha1": library.downloads.artifact.sha1,
@@ -303,10 +316,13 @@ class UpdateVersionManifest(Task[dict[str, Any]]):
        
 
 
-
 THREAD_COUNT = 16
 
-# ! WIP
+@dataclass
+class _Reference:
+    kind: Literal["client", "assets", "library"]
+    sha1: str
+
 class InstallInstance(Task[dict[str, Any]]):
 
     class State(Enum):
@@ -319,6 +335,8 @@ class InstallInstance(Task[dict[str, Any]]):
 
         CANCELING = "canceling"
 
+    
+
 
     def __init__(self, version: str, stop_event: Event):
         self.version: str = version
@@ -328,6 +346,10 @@ class InstallInstance(Task[dict[str, Any]]):
 
         self.exist_assets: list[MCAssetsObjects] = []
         self.exist_libraries: list[MCLibraries] = []
+
+        
+
+        self.referneces: list[_Reference] = []
 
     def get_not_exist_assets(self, all_objects: list[MCAssetsObjects]):
         # 先查询所有的objects
@@ -390,18 +412,23 @@ class InstallInstance(Task[dict[str, Any]]):
         stop_event = self.stop_event
         progress_queue: Queue[DownloadMessage] = Queue()
 
-        # TODO: client的下载，需要先判断是否已经存在
         #region 添加client下载
-        downloaders[count] = Downloader(
-            stop_event,
-            count,
-            "client",
-            version_info.client_files, #pyright: ignore[reportArgumentType]
-            version_info.client_sha1,
-            paths.instances / f"{self.version}.jar",
-            progress_queue
-        )
-        total_size += cast(int, version_info.client_size)
+
+        # 先判断是否已经存在client文件
+        if Files.get_or_none(sha1=version_info.client_sha1) is None:
+            # 若不存在，则添加下载器
+            downloaders[count] = Downloader(
+                stop_event,
+                count,
+                "client",
+                version_info.client_files, #pyright: ignore[reportArgumentType]
+                version_info.client_sha1,
+                paths.instances / f"{self.version}.jar",
+                progress_queue
+            )
+            total_size += cast(int, version_info.client_size)
+
+        self.referneces.append(_Reference(kind="client", sha1=cast(str, version_info.client_sha1)))
         #endregion
 
         #region 添加assets下载
@@ -430,6 +457,12 @@ class InstallInstance(Task[dict[str, Any]]):
             )
 
             total_size += asset.size
+
+        self.referneces.extend(
+            [_Reference(kind="assets", sha1=asset.hash) 
+            for asset in not_exist_assets + self.exist_assets
+        ])
+
         #endregion
         
         #region 添加libraries下载
@@ -437,6 +470,11 @@ class InstallInstance(Task[dict[str, Any]]):
             MCLibraries.select()
             .where(MCLibraries.version == version_info)
         ))
+
+        self.referneces.extend(
+            [_Reference(kind="library", sha1=lib.sha1) 
+            for lib in not_exist_libraries + self.exist_libraries
+        ])
 
         rule_adapter = TypeAdapter(list[Rule])
 
@@ -477,146 +515,208 @@ class InstallInstance(Task[dict[str, Any]]):
         
         # TODO: 日志config的xml下载
 
-        yield StepFinished(self.State.DOWNLOADING.value, {
-            "total_size": total_size,
-            "count": count,
-        })
+        if len(downloaders) != 0:
+            yield StepFinished(self.State.DOWNLOADING.value, {
+                "total_size": total_size,
+                "count": len(downloaders),
+            })
 
-        downloader_queue: Queue[Downloader] = Queue()  # 用于主线程和下载线程之间的通信，池大小为8个
-        writer_database_queue: Queue[Files] = Queue()
+            downloader_queue: Queue[Downloader] = Queue()  # 用于主线程和下载线程之间的通信，池大小为8个
+            writer_database_queue: Queue[Files] = Queue()
 
-        def worker(downloader_queue: Queue[Downloader], stop_event: Event):
-            while True:
-                if stop_event.is_set():
-                    break
-                
-                try:
-                    downloader = downloader_queue.get(timeout=0.1)
-                except Empty:
-                    continue
-
-                downloader.run()
-
-                downloader_queue.task_done()
-
-        def writer_worker(writer_database_queue: Queue[Files], stop_event: Event):
-            while True:
-                if stop_event.is_set():
-                    break
-                
-                try:
-                    file = writer_database_queue.get(timeout=0.1)
-                except Empty:
-                    continue
-
-                try:
-                    file.save()
-                except Exception as e:
-                    print(file.path, file.sha1)
-                    print(e)
-                    continue
-                
-                writer_database_queue.task_done()
-        
-        writer_thread = Thread(target=writer_worker, args=(writer_database_queue, stop_event))
-        threads: list[Thread] = [Thread(target=worker, args=(downloader_queue, stop_event)) for _ in range(THREAD_COUNT)]
-
-        for t in threads:
-            t.start()
-        
-        writer_thread.start()
-
-
-
-        current_downloaders: list[Downloader] = []
-
-        downloaders_list = list(downloaders.values())
-
-        error_downloaders: list[Downloader] = []
-
-        try:
-            while True:
-
-                all_done = False
-                while len(current_downloaders) < THREAD_COUNT:
-                    if not downloaders_list:
-                        all_done = True
+            def worker(downloader_queue: Queue[Downloader], stop_event: Event):
+                while True:
+                    if stop_event.is_set():
                         break
-                        
-                    new_downloader = downloaders_list.pop(0)
                     
-                    current_downloaders.append(new_downloader)
+                    try:
+                        downloader = downloader_queue.get(timeout=0.1)
+                    except Empty:
+                        continue
 
-                    downloader_queue.put(new_downloader)
+                    downloader.run()
 
-                    yield StepUpdate("new_download_started", {
-                        "thread": current_downloaders.index(new_downloader),
-                        "id": new_downloader.id,
-                    })
-                
-                if all_done:
-                    break
+                    downloader_queue.task_done()
 
-
-                try:
-                    message = progress_queue.get(timeout=0.1)
-                except Empty:
-                    continue
-
-                downloader = downloaders[message.id]
-                
-                if message.type in ["download_error", "verify_error"]:
-                    current_downloaders.remove(downloader)
-
-                    error_downloaders.append(downloader)
-
-                elif message.type == "finished":
-                    current_downloaders.remove(downloader)
-
-                    writer_database_queue.put(Files(
-                        path=os.path.relpath(downloader.path, paths.data),
-                        sha1=downloader.sha1,
-                        size=message.data["size"],
-                        created_at=datetime.now(),
-                    ))
+            def writer_worker(writer_database_queue: Queue[Files], stop_event: Event):
+                buffer: list[Files] = []
 
 
-                thread: int = -1
-                for i, downloader in enumerate(current_downloaders):
-                    if downloader.id == message.id:
-                        thread = i
+                while True:
+                    if stop_event.is_set():
                         break
-        
-                yield StepUpdate("download_progress", {
-                                "id": message.id,
-                                "thread": thread,
-                                "type": message.type,
-                                "data": message.data
-                            })
+                    
+                    try:
+                        file = writer_database_queue.get(timeout=0.1)
+                    except Empty:
+                        continue
 
-        except KeyboardInterrupt:
+                
+                    buffer.append(file)
+
+                    if len(buffer) >= 50 or stop_event.is_set():
+                        # try:
+                        #     with Files._meta.database.atomic():
+                        #         Files.insert_many(
+                        #             [model_to_dict(file) for file in buffer]
+                        #         ).execute()
+                        # except Exception as e:
+                        #     print("Error: ", e)
+                        #     for file in buffer:
+                        #         print(file.path, file.sha1)
+
+                        for file in buffer:
+                            try:
+                                Files.create(**model_to_dict(file))
+                            except Exception as e:
+                                print("Error: ", e)
+                                print(file.path, file.sha1)
+
+
+
+                        buffer.clear()
+                    
+                    
+                    writer_database_queue.task_done()
+            
+            writer_thread = Thread(target=writer_worker, args=(writer_database_queue, stop_event))
+            threads: list[Thread] = [Thread(target=worker, args=(downloader_queue, stop_event)) for _ in range(THREAD_COUNT)]
+
+            for t in threads:
+                t.start()
+            
+            writer_thread.start()
+
+
+
+            current_downloaders: list[Downloader] = []
+
+            downloaders_list = list(downloaders.values())
+
+            error_downloaders: list[Downloader] = []
+
+            try:
+                while True:
+
+                    while len(current_downloaders) < THREAD_COUNT:
+                        if not downloaders_list:
+                            break
+                            
+                        new_downloader = downloaders_list.pop(0)
+                        
+                        current_downloaders.append(new_downloader)
+
+                        downloader_queue.put(new_downloader)
+
+                        yield StepUpdate("new_download_started", {
+                            "thread": current_downloaders.index(new_downloader),
+                            "id": new_downloader.id,
+                        })
+                    
+
+                    try:
+                        message = progress_queue.get(timeout=0.1)
+                    except Empty:
+                        continue
+
+
+                    downloader = downloaders[message.id]
+                    
+                    if message.type in ["download_error", "verify_error"]:
+                        current_downloaders.remove(downloader)
+
+                        error_downloaders.append(downloader)
+
+                    elif message.type == "finished":
+                        current_downloaders.remove(downloader)
+
+                        writer_database_queue.put(Files(
+                            path=os.path.relpath(downloader.path, paths.data),
+                            sha1=downloader.sha1,
+                            size=message.data["size"],
+                            created_at=datetime.now(),
+                        ))
+
+                    if len(current_downloaders) == 0:
+                        break
+
+                    thread: int = -1
+                    for i, downloader in enumerate(current_downloaders):
+                        if downloader.id == message.id:
+                            thread = i
+                            break
+            
+                    yield StepUpdate("download_progress", {
+                                    "id": message.id,
+                                    "thread": thread,
+                                    "type": message.type,
+                                    "data": message.data
+                                })
+
+            except KeyboardInterrupt:
+                stop_event.set()
+
+
+                yield StepFinished(self.State.CANCELING.value)
+                
+                for t in threads:
+                    t.join()
+                
+                yield StepFinished(self.State.CANCELED.value, {})
+
+
             stop_event.set()
 
 
-            yield StepFinished(self.State.CANCELING.value)
-            
+            writer_thread.join()
+
+        
             for t in threads:
                 t.join()
             
-            yield StepFinished(self.State.CANCELED.value, {})
+            if len(error_downloaders) > 0 :
+                yield StepUpdate("has_error", {
+                    "count": len(error_downloaders)
+                })
+                return False
 
-
-        writer_thread.join()
-
-        for t in threads:
-            t.join()
         
-        if len(error_downloaders) > 0 :
-            yield StepUpdate("has_error", {
-                "count": len(error_downloaders)
-            })
+        # 构建引用关系
+        yield StepFinished("building_references", {
+            "total": len(self.referneces),
+        })
 
+        count = 0
+        with self.database.atomic():
+            for reference in self.referneces:
+                if reference.kind == "client":
+                    Instances.create(
+                        name=version_info.version,
+                        version=version_info,
+                        client_file=Files.get(sha1=reference.sha1),
+                    )
+                    
+                elif reference.kind == "library":
+                    LibrariesReference.create(
+                        library_file=Files.get(sha1=reference.sha1),
+                        version=version_info
+                    )
+                elif reference.kind == "assets":
+                    print(reference.sha1)
+                    file = Files.get(sha1=reference.sha1)
+                    print(file, type(file))
+                    AssetsReference.create(
+                        assets_file=file,
+                        version=version_info
+                    )
+                count += 1
 
+                yield StepUpdate("building_progress", {
+                    "finished": count,
+                    "total": len(downloaders),
+                })
+
+        return True
 
           
 class InstancesService:
