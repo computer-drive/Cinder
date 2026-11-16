@@ -87,8 +87,8 @@ class MCVersions(BaseModel):
     client_size = IntegerField(null=True) # 客户端文件的大小
 
     logging_argument = CharField(null=True) # 日志的启动参数
+    
     logging_file = JSONField(null=True) # 日志的文件信息
-
 
     fetched_at = DateTimeField(null=True)
 
@@ -187,7 +187,7 @@ class Instances(BaseModel):
 
     startup_count = IntegerField(default=0) # 启动次数
 
-    
+
 
 
     

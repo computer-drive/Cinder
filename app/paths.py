@@ -50,6 +50,11 @@ class Paths:
         return self.assets / "objects" # 共享assets数据库
 
     @property
+    def assets_logging(self): 
+        return self.assets / "logging" # 共享日志配置
+
+
+    @property
     def mods(self):
         return self.data / "mods" # 共享mods
 
@@ -65,7 +70,7 @@ class Paths:
 
     def ensure(self):
         '''确保所有路径存在，若不存在则会创建'''
-        for path in [ self.cache, self.libraries,
+        for path in [ self.cache, self.libraries, self.assets_logging,
                 self.assets, self.mods, self.instances, self.natives, self.gamedata,
                 self.assets_index, self.assets_objects]:
             

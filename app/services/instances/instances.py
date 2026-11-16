@@ -322,7 +322,7 @@ THREAD_COUNT = 16
 @dataclass
 class _Reference:
     kind: Literal["client", "assets", "library"]
-    meta: MCLibraries | MCAssetsObjects
+    meta: MCLibraries | MCAssetsObjects | MCVersions
     sha1: str
 
 class InstallInstance(Task[dict[str, Any]]):
@@ -433,6 +433,10 @@ class InstallInstance(Task[dict[str, Any]]):
             )
             total_size += cast(int, version_info.client_size)
 
+        self.references.append(
+            _Reference(kind="client", sha1=cast(str, version_info.client_sha1), meta=version_info)
+        )
+
         #endregion
 
         #region 添加assets下载
@@ -518,10 +522,22 @@ class InstallInstance(Task[dict[str, Any]]):
         #endregion
         
         # TODO: 日志config的xml下载
+        logging_file = VersionManifestV2._Logging._Client._File(**version_info.logging_file)
+
+        if Files.get_or_none(sha1=logging_file.sha1) is None:
+            downloaders[count] = Downloader(
+                stop_event,
+                count,
+                "logging",
+                logging_file.url,
+                logging_file.sha1,
+                paths.assets_logging / logging_file.id,
+                progress_queue
+            )
+            total_size += logging_file.size
 
         # 为references生成map
         self.references_map = {reference.sha1: reference for reference in self.references}
-
         if len(downloaders) != 0:
             yield StepFinished(self.State.DOWNLOADING.value, {
                 "total_size": total_size,
@@ -720,13 +736,14 @@ class InstallInstance(Task[dict[str, Any]]):
             instance = Instances.create(
                 name=self.instance_name,
                 version=version_info,
-                client_file=self.references_map[cast(str, version_info.client_sha1)],
+                client_file=Files.get(sha1=cast(str, version_info.client_sha1)),
+                logging_config=Files.get(sha1=logging_file.sha1),
             )
 
             for reference in self.references:  
                 if reference.kind == "library":
                     LibrariesReference.create(
-                        library_file=self.references_file[reference.sha1],
+                        library_file=Files.get(sha1=reference.sha1),
                         instance=instance,
                         library=reference.meta,
                     )
@@ -737,6 +754,9 @@ class InstallInstance(Task[dict[str, Any]]):
                         instance=instance,
                         asset=reference.meta,
                     )
+                elif reference.kind == "client":
+                    pass
+
                 count += 1
 
                 yield StepUpdate("building_progress", {
