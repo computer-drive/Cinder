@@ -2,3 +2,5 @@
 __pycache__/
 
 cinder.lock
+
+.vscode/*
