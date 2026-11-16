@@ -237,10 +237,9 @@ class Progress(LiveElement):
     def stop(self):
         self.is_stop = True
 
+
     def update(self):
-        if self.is_stop:
-            Cursor.println("")
-            return STOP_SIGNAL
+        
 
         while not self.output_queue.empty():
             el = self.output_queue.get_nowait()
@@ -258,5 +257,8 @@ class Progress(LiveElement):
 
         Cursor.overwrite(f"{self.text} {PROGRESS_CHAR*progress_length}{NULL_CHAR*null_length} {self.progress}/{self.total}")
 
+        if self.is_stop:
+            Cursor.println("")
+            return STOP_SIGNAL
         
         

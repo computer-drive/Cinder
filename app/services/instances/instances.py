@@ -12,6 +12,7 @@ lazy from pydantic import BaseModel, ValidationError, computed_field, TypeAdapte
 lazy from playhouse.shortcuts import model_to_dict
 lazy import requests
 
+from core.utils.path import path_legalize
 from ...paths import paths
 from ...database import use_database
 from ...database.model import (MCLibraries, LibrariesReference, AssetsReference,
@@ -321,6 +322,7 @@ THREAD_COUNT = 16
 @dataclass
 class _Reference:
     kind: Literal["client", "assets", "library"]
+    meta: MCLibraries | MCAssetsObjects
     sha1: str
 
 class InstallInstance(Task[dict[str, Any]]):
@@ -347,9 +349,12 @@ class InstallInstance(Task[dict[str, Any]]):
         self.exist_assets: list[MCAssetsObjects] = []
         self.exist_libraries: list[MCLibraries] = []
 
-        
+        self.instance_name: str = ""
 
         self.references: list[_Reference] = []
+        self.references_map: dict[str, _Reference] = {}
+
+        self.references_file: dict[str, Files] = {}
 
     def get_not_exist_assets(self, all_objects: list[MCAssetsObjects]):
         # 先查询所有的objects
@@ -428,7 +433,6 @@ class InstallInstance(Task[dict[str, Any]]):
             )
             total_size += cast(int, version_info.client_size)
 
-        self.references.append(_Reference(kind="client", sha1=cast(str, version_info.client_sha1)))
         #endregion
 
         #region 添加assets下载
@@ -459,7 +463,7 @@ class InstallInstance(Task[dict[str, Any]]):
             total_size += asset.size
 
         self.references.extend(
-            [_Reference(kind="assets", sha1=asset.hash) 
+            [_Reference(kind="assets", sha1=asset.hash, meta=asset) 
             for asset in not_exist_assets + self.exist_assets
         ])
 
@@ -472,7 +476,7 @@ class InstallInstance(Task[dict[str, Any]]):
         ))
 
         self.references.extend(
-            [_Reference(kind="library", sha1=lib.sha1) 
+            [_Reference(kind="library", sha1=lib.sha1, meta=lib) 
             for lib in not_exist_libraries + self.exist_libraries
         ])
 
@@ -494,7 +498,7 @@ class InstallInstance(Task[dict[str, Any]]):
                     "libraries",
                     library.url,
                     library.sha1,
-                    paths.natives / (library.name + ".jar"),
+                    paths.natives / (path_legalize(library.name) + ".jar"),
                     progress_queue
                 )
 
@@ -506,7 +510,7 @@ class InstallInstance(Task[dict[str, Any]]):
                     "libraries",
                     library.url,
                     library.sha1,
-                    paths.libraries / (library.name + ".jar"),
+                    paths.libraries / (path_legalize(library.name) + ".jar"),
                     progress_queue
                 )
                 
@@ -514,6 +518,9 @@ class InstallInstance(Task[dict[str, Any]]):
         #endregion
         
         # TODO: 日志config的xml下载
+
+        # 为references生成map
+        self.references_map = {reference.sha1: reference for reference in self.references}
 
         if len(downloaders) != 0:
             yield StepFinished(self.State.DOWNLOADING.value, {
@@ -525,6 +532,8 @@ class InstallInstance(Task[dict[str, Any]]):
             writer_database_queue: Queue[Files] = Queue()
 
             def worker(downloader_queue: Queue[Downloader], stop_event: Event):
+                session = requests.Session()
+
                 while True:
                     if stop_event.is_set():
                         break
@@ -534,7 +543,7 @@ class InstallInstance(Task[dict[str, Any]]):
                     except Empty:
                         continue
 
-                    downloader.run()
+                    downloader.run(session)
 
                     downloader_queue.task_done()
 
@@ -555,22 +564,25 @@ class InstallInstance(Task[dict[str, Any]]):
                     buffer.append(file)
 
                     if len(buffer) >= 50 or stop_event.is_set():
-                        # try:
-                        #     with Files._meta.database.atomic():
-                        #         Files.insert_many(
-                        #             [model_to_dict(file) for file in buffer]
-                        #         ).execute()
-                        # except Exception as e:
-                        #     print("Error: ", e)
-                        #     for file in buffer:
-                        #         print(file.path, file.sha1)
-
-                        for file in buffer:
-                            try:
-                                Files.create(**model_to_dict(file))
-                            except Exception as e:
-                                print("Error: ", e)
+                        try:
+                            with Files._meta.database.atomic():
+                                Files.insert_many(
+                                    [model_to_dict(file) for file in buffer]
+                                ).execute()
+                        except Exception as e:
+                            print("Error: ", e)
+                            for file in buffer:
                                 print(file.path, file.sha1)
+
+                        # 如果写入成功，就更新references_file
+                        self.references_file[file.sha1] = file
+
+                        # for file in buffer:
+                        #     try:
+                        #         Files.create(**model_to_dict(file))
+                        #     except Exception as e:
+                        #         print("Error: ", e)
+                        #         print(file.path, file.sha1)
 
 
 
@@ -637,7 +649,8 @@ class InstallInstance(Task[dict[str, Any]]):
                             created_at=datetime.now(),
                         ))
 
-                    if len(current_downloaders) == 0:
+                    if not current_downloaders and not downloaders_list:
+                        # 当所有下载器都完成时，且没有新的下载器时，跳出循环
                         break
 
                     thread: int = -1
@@ -685,31 +698,44 @@ class InstallInstance(Task[dict[str, Any]]):
         else:
             yield StepFinished("download_aleady_finished")
 
+
+        while True:
+            yield StepFinished("input_instance_name")
+
+            if Instances.get_or_none(name=self.instance_name) is None:
+                break
+            else:
+                yield StepUpdate("instance_name_exists", {})
+
+
+
         # 构建引用关系
         yield StepFinished("building_references", {
             "total": len(self.references),
         })
 
         count = 0
+        
         with self.database.atomic():
-            for reference in self.references:
-                if reference.kind == "client":
-                    Instances.create(
-                        name=version_info.version,
-                        version=version_info,
-                        client_file=Files.get(sha1=reference.sha1),
-                    )
-                    
-                elif reference.kind == "library":
+            instance = Instances.create(
+                name=self.instance_name,
+                version=version_info,
+                client_file=self.references_map[cast(str, version_info.client_sha1)],
+            )
+
+            for reference in self.references:  
+                if reference.kind == "library":
                     LibrariesReference.create(
-                        library_file=Files.get(sha1=reference.sha1),
-                        version=version_info
+                        library_file=self.references_file[reference.sha1],
+                        instance=instance,
+                        library=reference.meta,
                     )
                 elif reference.kind == "assets":
 
                     AssetsReference.create(
                         asset_file=Files.get(sha1=reference.sha1),
-                        version=version_info
+                        instance=instance,
+                        asset=reference.meta,
                     )
                 count += 1
 

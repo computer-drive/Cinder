@@ -38,12 +38,15 @@ class Downloader:
 
 
         
-    def run(self):
+    def run(self, session: requests.Session | None):
         download_size = 0
         is_error = False
 
+        if session is None:
+            session = requests.Session()
+
         try:
-            response = requests.get(self.url, stream=True, timeout=5)
+            response = session.get(self.url, stream=True, timeout=5)
 
             total = int(response.headers.get("Content-Length", 0))
 
@@ -70,6 +73,8 @@ class Downloader:
                             }
                         )
                     )
+
+            response.close()
 
 
         except Exception as e:

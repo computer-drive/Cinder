@@ -171,6 +171,28 @@ class MCAssetsObjects(BaseModel):
 
     size = IntegerField()
 
+class Instances(BaseModel):
+    class Meta:
+        table_name = "instances"
+
+    name = CharField(primary_key=True)
+
+    version = ForeignKeyField(MCVersions, backref="+")
+
+    client_file = ForeignKeyField(Files, backref="+")
+
+    logging_config = ForeignKeyField(Files, backref="+") # 日志配置文件
+
+    default_account = ForeignKeyField(Accounts, backref="+", null=True, on_delete='SET NULL')
+
+    startup_count = IntegerField(default=0) # 启动次数
+
+    
+
+
+    
+
+
 
 class AssetsReference(BaseModel):
     class Meta:
@@ -181,9 +203,13 @@ class AssetsReference(BaseModel):
 
     id =  AutoField()
 
+    asset = ForeignKeyField(MCAssetsObjects, backref="+")
+
     asset_file = ForeignKeyField(Files, backref="+")
 
-    version = ForeignKeyField(MCVersions, backref="+")
+    instance = ForeignKeyField(Instances, backref="+")
+
+
 
 class LibrariesReference(BaseModel):
     class Meta:
@@ -194,19 +220,11 @@ class LibrariesReference(BaseModel):
 
     id =  AutoField()
 
+    library = ForeignKeyField(MCLibraries, backref="+")
+
     library_file = ForeignKeyField(Files, backref="+")
 
-    version = ForeignKeyField(MCVersions, backref="+")
-
-class Instances(BaseModel):
-    class Meta:
-        table_name = "instances"
-
-    name = CharField(primary_key=True)
-
-    version = ForeignKeyField(MCVersions, backref="+")
-
-    client_file = ForeignKeyField(Files, backref="+")
+    instance = ForeignKeyField(Instances, backref="+")
 
 
 

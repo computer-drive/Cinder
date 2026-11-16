@@ -176,12 +176,20 @@ def install_instance(
 
                     break
 
+                elif event.step == "input_instance_name":
+                    task.instance_name = console.input("请输入实例名称：", lambda x: x.strip() != "")
+
+                elif event.step == "instance_name_exists":
+                    console.println(f"实例名称 {task.instance_name} 已存在。")
+
+                    
+
                 elif event.step == "building_references":
 
                     buildref_progress.set_total(event.data["total"])
                     console.put(buildref_progress)
 
-                elif event.step == "download_already_finished":
+                elif event.step == "download_aleady_finished":
 
                     download_progress.stop()
 
@@ -191,10 +199,6 @@ def install_instance(
                 elif event.step == "download_all_finished":
 
                     download_progress.stop()
-
-
-
-
 
 
                 
@@ -227,7 +231,7 @@ def install_instance(
             console.println("若你确定版本存在，请先运行 instances:update 命令。")
 
         elif e.message == task.State.VERSION_UNFETCHED.value:
-            console.error(f"版本 {version} 的数据未获取过。")
+            console.error(f"版本 {version}（{task.instance_name}）的数据未获取过。")
 
         else:
             print(e.message)
