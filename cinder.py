@@ -7,6 +7,8 @@ from core.arguments import Parser
 from core.utils.memory import tune_malloc
 
 from app.paths import Paths
+from app.config.base import use_config
+
 lazy from app.commands import parsers
 
 # 调整 malloc 行为
@@ -17,7 +19,10 @@ tune_malloc()
 # 启动渲染
 console = startup()
 
-# 初始化解析
+# 初始化配置
+use_config()
+
+## 初始化解析
 parser = Parser(help="Cinder命令行")
 parser.register(*parsers)
 
