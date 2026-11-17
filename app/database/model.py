@@ -125,6 +125,10 @@ class MCLibraries(BaseModel):
             (('version', 'maven_path'), True),  # 对于一个版本，应该只出现一个支持库
         )
 
+        constraints = [
+            Check('is_native IS NULL OR order IS NULL'),
+        ]
+
     version = ForeignKeyField(MCVersions, backref="+")
 
     maven_path = CharField()
@@ -137,7 +141,7 @@ class MCLibraries(BaseModel):
 
     is_native = BooleanField(default=False)
 
-
+    order = IntegerField()
 
     name = CharField()
 
@@ -190,9 +194,6 @@ class Instances(BaseModel):
     startup_count = IntegerField(default=0) # 启动次数
 
 
-
-
-    
 
 
 

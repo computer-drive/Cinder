@@ -202,7 +202,7 @@ class UpdateVersionManifest(Task[dict[str, Any]]):
                             # 若不符合，则跳过
                             continue
 
-                    print(library.name,library.natives, "1")
+                    # print(library.name,library.natives, "1")
 
                     if library.downloads.artifact is not None:
                         # 若有artifact，则添加到列表，不是native库
@@ -229,11 +229,12 @@ class UpdateVersionManifest(Task[dict[str, Any]]):
                                 "is_native": False,
                                 "version": version_info,
                                 "rules": [rule.model_dump() for rule in library.rules] if library.rules else None,
+                                "order": manifest.libraries.index(library),  # 按下标插入库的顺序
                             })
 
                     # print(library)
                     
-                    print(library.name,library.natives, "2")
+                    # print(library.name,library.natives, "2")
 
 
                     if library.natives is not None:
