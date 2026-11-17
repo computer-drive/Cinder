@@ -7,6 +7,8 @@ from typing import Generator
 lazy import requests
 from pydantic import BaseModel, ValidationError, computed_field, PrivateAttr
 
+from app.config.base import use_config
+
 lazy from ..database import use_database
 lazy from ..database.model import Accounts
 from .base import Task, StepUpdate, StepFinished, TaskError
@@ -99,18 +101,14 @@ class _New(Task):
 
     def run(self) -> Generator[StepUpdate | StepFinished, None, dict | None]:
 
-        # 从环境变量取被覆写的值
-        APP_ID_ =  os.environ.get("cinder_override_app_id", None)
+        config = use_config()
 
-        if APP_ID_ is not None:
-            yield StepUpdate("warn_override_app_id")
-        else:
-            APP_ID_ = APP_ID
+        ms_app_id = config.accounts.override.ms_client_id or APP_ID
 
         # 发送请求获取登录代码
         res_ = requests.post(GET_DEVICE_CODE, data={
             "response_type": "device_code",
-            "client_id": APP_ID_,
+            "client_id": ms_app_id,
             "scope": "XboxLive.signin offline_access"
         }, headers={
             "Content-Type": "application/x-www-form-urlencoded"
@@ -135,7 +133,7 @@ class _New(Task):
                 # 轮询查询登录状态
                 res_ = requests.post(GET_MS_TOKEN, data={
                     "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
-                    "client_id": APP_ID_,
+                    "client_id": ms_app_id,
                     "device_code": result.device_code,
                 }, headers={"Content-Type": "application/x-www-form-urlencoded"}
                 )

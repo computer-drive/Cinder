@@ -126,7 +126,7 @@ class MCLibraries(BaseModel):
         )
 
         constraints = [
-            Check('is_native IS NULL OR order IS NULL'),
+            Check('is_native = true OR "order" IS NOT NULL'),
         ]
 
     version = ForeignKeyField(MCVersions, backref="+")
@@ -141,7 +141,7 @@ class MCLibraries(BaseModel):
 
     is_native = BooleanField(default=False)
 
-    order = IntegerField()
+    order = IntegerField(null=True)
 
     name = CharField()
 

@@ -16,9 +16,9 @@ class StepFinished:
     data: dict[str, Any] = field(default_factory=dict)
     is_error: bool = False
 
-class TaskError(Exception):
-    def __init__(self, message: str, data: dict[str, Any] | None = None):
-        self.message: str = message
+class TaskError[T](Exception):
+    def __init__(self, message: T, data: dict[str, Any] | None = None):
+        self.message: T = message
         self.data: dict[str, Any] | None = data
 
         super().__init__(message)

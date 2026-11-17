@@ -269,6 +269,7 @@ class UpdateVersionManifest(Task[dict[str, Any]]):
                                 "maven_path": library.downloads.classifiers[classifier_name].path,
                                 "is_native": True,
                                 "version": version_info,
+                                "order": None,
                                 "rules": [rule.model_dump() for rule in library.rules] if library.rules else None,
                             })
                         
@@ -510,7 +511,7 @@ class InstallInstance(Task[dict[str, Any]]):
                         "libraries",
                         library.url,
                         library.sha1,
-                        paths.natives / (path_legalize(library.name) + ".jar"),
+                        paths.natives / (path_legalize(library.sha1)) ,
                         progress_queue
                     )
 
@@ -773,49 +774,53 @@ class InstallInstance(Task[dict[str, Any]]):
 
                 count += 1
 
-                yield StepUpdate("building_progress", {
-                    "finished": count,
-                    "total": len(downloaders),
-                })
+                # yield StepUpdate("building_progress", {
+                #     "finished": count,
+                #     "total": len(downloaders),
+                # })
 
         yield StepFinished("building_references_finished")
 
         
         
-        natives = (list(LibrariesReference.select()
-            .join(MCLibraries)
-            .where(MCLibraries.is_native == True)
-        ))
+        # natives = (list(LibrariesReference.select()
+        #     .join(MCLibraries)
+        #     .where(MCLibraries.is_native == True)
+        # ))
 
 
-        count = 0 
-        yield StepFinished("extracting_natives", {
-            "count": len(natives)
-        })
+        # count = 0 
+        # yield StepFinished("extracting_natives", {
+        #     "count": len(natives)
+        # })
 
-        for library in natives:
-            dst = paths.natives / library.library_file.sha1
-            
-            if dst.exists():
-                # 已存在，跳过
-                continue
-            
-            library_file = paths.data / library.library_file.path
+        # for library in natives:
+        #     library_file = paths.data / library.library_file.path
 
-            with zipfile.ZipFile(library_file) as f:
-                f.extractall(dst)
-
-            library_file.unlink()
+        #     if library_file.exists():
+        #         continue
 
             
+        #     library_file.rename(library_file.with_name(library.library_file.sha1 + "_file"))
 
-            count += 1
+        #     dst = paths.natives / library.library_file.sha1
 
-            yield StepUpdate("extracting_progress", {
-                "finished": count,
-            })
+            
+        
 
-        yield StepFinished("extracting_natives_finished")
+        #     with zipfile.ZipFile(library_file) as f:
+        #         f.extractall(dst)
+
+        #     library_file.unlink()
+
+            
+        #     count += 1
+
+        #     yield StepUpdate("extracting_progress", {
+        #         "finished": count,
+        #     })
+
+        # yield StepFinished("extracting_natives_finished")
 
     
 

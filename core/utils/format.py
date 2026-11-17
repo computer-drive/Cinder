@@ -1,4 +1,5 @@
 from datetime import timedelta
+import re
 
 def format_size(size: int | float) -> str:
     '''格式化文件大小。'''
@@ -32,3 +33,10 @@ def td_to_hms(td: timedelta, *, wrap24: bool = False, round_us: bool = True) -> 
         hours %= 24
 
     return f"{sign}{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+
+
+def substitute(text: str, ctx: dict[str, str]):
+    '''格式化${}格式的字符串'''
+
+    return re.sub(r"\$\{(\w+)\}", lambda m: ctx.get(m.group(1), m.group(0)), text)

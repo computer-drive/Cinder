@@ -1,6 +1,7 @@
 from typing import Literal
 
 lazy from requests.exceptions import RequestException
+import pyperclip
 
 from core.terminal.console import Console
 from core.terminal.control import Fore, Style
@@ -16,7 +17,7 @@ from .command import accounts
 def add_account():
     console = Console.get_instance()
 
-    console.title("添加 Minecraft 账户")
+    # console.title("添加 Minecraft 账户")
 
     step = 1
     step_name = "正在准备..."
@@ -36,8 +37,13 @@ def add_account():
                 
                 match event.step:
                     case "wait_login":
+                        try:
+                            pyperclip.copy(event.data["user_code"])
+                        except pyperclip.PyperclipException as e:
+                            console.error(f"复制到剪切板失败：{e}")
 
-                        console.println(f"请在打开的浏览器窗口中输入：{Style.bold}{Style.underline()}{event.data["user_code"]}{Style.reset}，然后登录 Microsoft 账户。")
+
+                        console.println(f"请在打开的浏览器窗口中输入：{Style.bold}{Style.underline()}{event.data["user_code"]}{Style.reset}（已复制到剪切板），然后登录 Microsoft 账户。")
                         console.println(f"没有找到浏览器窗口？点击链接：{Style.link("登录 Microsoft 账户", event.data["verification_uri"])}\n")
 
                         step_name = "等待登录..."

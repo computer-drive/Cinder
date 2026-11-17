@@ -265,7 +265,10 @@ class Progress(LiveElement):
             elif isinstance(el, BaseElement):
                 Cursor.print(f"\r{el.get_text()}")
             else:
+
                 print("unsupport element")
+                self.output_queue.put(el)
+                return STOP_SIGNAL
 
         terminal_width = shutil.get_terminal_size()[0]
 
