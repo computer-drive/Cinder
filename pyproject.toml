@@ -11,7 +11,9 @@ dependencies = [
     "tomlkit (>=0.15.2,<0.16.0)",
     "peewee (>=4.5.3,<5.0.0)",
     "pydantic (>=2.14.3,<3.0.0)",
-    "portalocker (>=4.4.2,<5.0.0)"
+    "portalocker (>=4.4.2,<5.0.0)",
+    "requests (>=2.34.2,<3.0.0)",
+    "pyperclip (>=1.11.0,<2.0.0)"
 ]
 
 
