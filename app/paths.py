@@ -33,7 +33,7 @@ class Paths:
 
     @property
     def natives(self):
-        return self.libraries / "natives" # 共享natives
+        return self.data / "libraries" / "natives" # 共享natives
 
 
 

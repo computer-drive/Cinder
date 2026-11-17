@@ -19,6 +19,7 @@ def use_database(*models: type[BaseModel]) -> SqliteDatabase:
 
 
         database.bind(ALL)
+        
         database.create_tables(ALL, safe=True)
 
     return database

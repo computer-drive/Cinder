@@ -7,6 +7,7 @@ import os
 from datetime import datetime
 import json
 from dataclasses import dataclass
+import zipfile
 
 lazy from pydantic import BaseModel, ValidationError, computed_field, TypeAdapter
 lazy from playhouse.shortcuts import model_to_dict
@@ -68,7 +69,7 @@ class UpdateVersionsIndex(Task[dict[str, Any]]):
 
         start_time = time.time()
 
-        database = use_database(MCVersions)
+        database = use_database()
 
         manifest_map = manifest.versions_map
 
@@ -201,7 +202,7 @@ class UpdateVersionManifest(Task[dict[str, Any]]):
                             # 若不符合，则跳过
                             continue
 
-                
+                    print(library.name,library.natives, "1")
 
                     if library.downloads.artifact is not None:
                         # 若有artifact，则添加到列表，不是native库
@@ -209,24 +210,32 @@ class UpdateVersionManifest(Task[dict[str, Any]]):
 
                         # 判断maven_path已经在found_artifacts中
                         if library.downloads.artifact.path in found_artifacts:
-                            # 若在，则跳过
-                            continue
+                            # 若在，则 什么都不做
+
+                            # continue
+                            pass
+                        else:
+
 
                         
-                        found_artifacts.add(library.downloads.artifact.path)
+                            found_artifacts.add(library.downloads.artifact.path)
 
-                        libraries.append({
-                            "name": library.name,
-                            "sha1": library.downloads.artifact.sha1,
-                            "size": library.downloads.artifact.size,
-                            "url": library.downloads.artifact.url,
-                            "maven_path": library.downloads.artifact.path,
-                            "is_native": False,
-                            "version": version_info,
-                            "rules": [rule.model_dump() for rule in library.rules] if library.rules else None,
-                        })
+                            libraries.append({
+                                "name": library.name,
+                                "sha1": library.downloads.artifact.sha1,
+                                "size": library.downloads.artifact.size,
+                                "url": library.downloads.artifact.url,
+                                "maven_path": library.downloads.artifact.path,
+                                "is_native": False,
+                                "version": version_info,
+                                "rules": [rule.model_dump() for rule in library.rules] if library.rules else None,
+                            })
 
+                    # print(library)
                     
+                    print(library.name,library.natives, "2")
+
+
                     if library.natives is not None:
                         # 若有natives库，添加到列表，是native库
                         if library.downloads.classifiers is None:
@@ -570,6 +579,8 @@ class InstallInstance(Task[dict[str, Any]]):
                 finally:
                     session.close()
 
+
+
             def writer_worker(writer_database_queue: Queue[Files], stop_event: Event):
                 buffer: list[Files] = []
 
@@ -579,10 +590,11 @@ class InstallInstance(Task[dict[str, Any]]):
                     try:
                         file = writer_database_queue.get(timeout=0.1)
                     except Empty:
-                        continue
+                        pass
+                    
+                    else:
 
-                
-                    buffer.append(file)
+                        buffer.append(file)
                     
                     # 批量写入数据库
                     if len(buffer) >= 50 or stop_event.is_set():
@@ -597,14 +609,13 @@ class InstallInstance(Task[dict[str, Any]]):
                                 print(file.path, file.sha1)
 
 
-
                         buffer.clear()
+
 
                         if stop_event.is_set() and writer_database_queue.empty():
                             break
                     
-                    
-                    writer_database_queue.task_done()
+
             
             writer_thread = Thread(target=writer_worker, args=(writer_database_queue, stop_event))
             threads: list[Thread] = [Thread(target=worker, args=(downloader_queue, stop_event)) for _ in range(THREAD_COUNT)]
@@ -663,6 +674,11 @@ class InstallInstance(Task[dict[str, Any]]):
                             size=message.data["size"],
                             created_at=datetime.now(),
                         ))
+
+                        yield StepUpdate("file_finished", {
+                            "name": downloader.path,
+                            "id": downloader.id,
+                        })
 
                     if not current_downloaders and not downloaders_list:
                         # 当所有下载器都完成时，且没有新的下载器时，跳出循环
@@ -723,7 +739,6 @@ class InstallInstance(Task[dict[str, Any]]):
                 yield StepUpdate("instance_name_exists", {})
 
 
-
         # 构建引用关系
         yield StepFinished("building_references", {
             "total": len(self.references),
@@ -761,6 +776,47 @@ class InstallInstance(Task[dict[str, Any]]):
                     "finished": count,
                     "total": len(downloaders),
                 })
+
+        yield StepFinished("building_references_finished")
+
+        
+        
+        natives = (list(LibrariesReference.select()
+            .join(MCLibraries)
+            .where(MCLibraries.is_native == True)
+        ))
+
+
+        count = 0 
+        yield StepFinished("extracting_natives", {
+            "count": len(natives)
+        })
+
+        for library in natives:
+            dst = paths.natives / library.library_file.sha1
+            
+            if dst.exists():
+                # 已存在，跳过
+                continue
+            
+            library_file = paths.data / library.library_file.path
+
+            with zipfile.ZipFile(library_file) as f:
+                f.extractall(dst)
+
+            library_file.unlink()
+
+            
+
+            count += 1
+
+            yield StepUpdate("extracting_progress", {
+                "finished": count,
+            })
+
+        yield StepFinished("extracting_natives_finished")
+
+    
 
         return True
 

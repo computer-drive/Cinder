@@ -7,10 +7,12 @@ from enum import Enum, auto
 from threading import Event
 import time
 from datetime import datetime, timedelta
+import shutil
+import wcwidth
 
 from .base import BaseElement
 from .element import Element
-from ..control import Cursor
+from ..control import Cursor, Scroll
 from ...utils.format import format_size, td_to_hms
 
 STOP_SIGNAL = sentinel("STOP_SIGNAL")
@@ -153,7 +155,7 @@ class DownloadProgress(LiveElement):
 
         self.progress = progress
         self.total = total
-        self.text = text
+        self.tips = text
 
         self.progress_length = 50
 
@@ -177,6 +179,9 @@ class DownloadProgress(LiveElement):
         
 
     def update(self) -> None | STOP_SIGNAL:
+        terminal_width, terminal_height = shutil.get_terminal_size()
+        
+
         if self.is_stop:
             Cursor.println("")
             return STOP_SIGNAL
@@ -188,12 +193,12 @@ class DownloadProgress(LiveElement):
                 self.output_queue.put(None)
                 return STOP_SIGNAL
             elif isinstance(el, BaseElement):
-                Cursor.print(f"\r{el.get_text()}")
+                t = el.get_text()
+
+                Cursor.println(f"\r{t}{" " * (terminal_width - wcwidth.wcswidth(t) - 2)}")
+
             else:
                 print("unsupport element")
-
-        progress_length = min(int(self.progress / self.total * self.progress_length), self.progress_length)
-        null_length = self.progress_length - progress_length
 
         if time.time() - self.last_update_time > 1:
             self.speed = self.duration_progress / (time.time() - self.last_update_time)
@@ -209,7 +214,17 @@ class DownloadProgress(LiveElement):
         except ZeroDivisionError:
             etc_text = "计算中"
 
-        Cursor.overwrite(f"{self.text} {PROGRESS_CHAR*progress_length}{NULL_CHAR*null_length} {format_size(self.progress)} / {format_size(self.total)}  {format_size(self.speed)}/s  {etc_text}")
+        text = f" {format_size(self.progress)} / {format_size(self.total)}  {format_size(self.speed)}/s  {etc_text}"
+        
+        terminal_width = shutil.get_terminal_size()[0]
+        full_progress_length: int = terminal_width - wcwidth.wcswidth(text) - wcwidth.wcstwidth(self.tips) - 4
+
+
+        progress_length = min(int(self.progress / self.total * full_progress_length), full_progress_length)
+        null_length = full_progress_length - progress_length
+        
+
+        Cursor.overwrite(f"{self.tips}[{PROGRESS_CHAR*progress_length}{NULL_CHAR*null_length}]{text}")
         
 
 class Progress(LiveElement):
@@ -219,7 +234,7 @@ class Progress(LiveElement):
 
         self.progress = progress
         self.total = total
-        self.text = text
+        self.tip = text
 
         self.progress_length = 50
 
@@ -251,11 +266,18 @@ class Progress(LiveElement):
                 Cursor.print(f"\r{el.get_text()}")
             else:
                 print("unsupport element")
-        
-        progress_length = min(int(self.progress / self.total * self.progress_length), self.progress_length)
-        null_length = self.progress_length - progress_length
 
-        Cursor.overwrite(f"{self.text} {PROGRESS_CHAR*progress_length}{NULL_CHAR*null_length} {self.progress} / {self.total}")
+        terminal_width = shutil.get_terminal_size()[0]
+
+        text = f" {self.progress} / {self.total}"
+
+        full_progress_length: int = terminal_width - wcwidth.wcswidth(self.tip) - 3 - wcwidth.wcswidth(text)
+        
+        progress_length = min(int(self.progress / self.total * full_progress_length), full_progress_length)
+        
+        null_length = full_progress_length - progress_length
+
+        Cursor.overwrite(f"{self.tip}[{PROGRESS_CHAR*progress_length}{NULL_CHAR*null_length}]{text}")
 
         if self.is_stop:
             Cursor.println("")

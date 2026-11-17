@@ -108,6 +108,8 @@ class MCVersions(BaseModel):
                 "   client_files IS NOT NULL AND "
                 "   client_sha1  IS NOT NULL AND "
                 "   client_size  IS NOT NULL AND "
+                "   logging_argument IS NOT NULL AND "
+                "   logging_file IS NOT NULL AND "
                 "   fetched_at   IS NOT NULL) "
                 ")"
             )
@@ -198,7 +200,7 @@ class AssetsReference(BaseModel):
     class Meta:
         table_name = "assets_reference"
         indexes = (
-            (('version', 'asset_file'), True),  # 同一个版本，应该只出现一个资源文件的引用
+            (('instance', 'asset_file'), True),  # 同一个版本，应该只出现一个资源文件的引用
         )
 
     id =  AutoField()
@@ -215,7 +217,7 @@ class LibrariesReference(BaseModel):
     class Meta:
         table_name = "libraries_reference"
         indexes = (
-            (('version', 'library_file'), True),  # 同一个版本，应该只出现一个支持库的引用
+            (('instance', 'library_file'), True),  # 同一个版本，应该只出现一个支持库的引用
         )
 
     id =  AutoField()

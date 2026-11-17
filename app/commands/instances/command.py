@@ -132,6 +132,7 @@ def install_instance(
     service = InstancesService()
 
     spinner = console.spinner(f"正在准备安装 {version}...")
+    spinner.loading1()
 
     stop_event = Event()
 
@@ -148,6 +149,8 @@ def install_instance(
     download_progress = DownloadProgress(console.output_queue, 0, 0, "下载文件")
 
     buildref_progress = Progress(console.output_queue, 0, 0, "构建引用")
+
+    extract_progress = Progress(console.output_queue, 0, 0, "提取本地（Natives）库")
 
     try:
         while True:
@@ -200,6 +203,14 @@ def install_instance(
 
                     download_progress.stop()
 
+                elif event.step == "extracting_natives":
+                    console.println("正在提取本地（Natives）库...")
+
+                    buildref_progress.stop()
+
+                    extract_progress.set_total(event.data["count"])
+                    console.put(extract_progress)
+
 
                 
 
@@ -208,9 +219,14 @@ def install_instance(
                     if event.data["type"] == "progress":
                         download_progress.add_progress(event.data["data"]["new_size"])
 
+                    
+
                     elif event.data["type"] == "download_error":
                         # print(event.data["data"])
-                        console.error(f"下载文件 {event.data["id"]} 时出错：{event.data["data"]["message"]}")
+                        console.error(f"下载失败 {event.data["id"]}：{event.data["data"]["message"]}", prefix=False)
+
+                elif event.step == "file_finished":
+                    console.println(f"下载成功 {event.data["id"]}：{event.data["name"]}")
 
                 elif event.step == "has_error":
                     console.warning(f"共有 {event.data["count"]} 个文件未能下载。")
@@ -218,13 +234,24 @@ def install_instance(
                     
                 elif event.step == "building_progress":
                     buildref_progress.set_progress(event.data["finished"])
+
+                elif event.step == "extracting_progress":
+                    extract_progress.set_progress(event.data["finished"])
+
+                elif event.step == "building_references_finished":
+                    buildref_progress.stop()
+
+                elif event.step == "extracting_natives_finished":
+                    extract_progress.stop()
                     
-                
+                                       
     except StopIteration as e:
         if e.value:
             buildref_progress.stop()
             
             console.println(f"成功安装版本 {version}。")
+
+        
 
     except TaskError as e:
         if e.message == task.State.VERSION_NOT_FOUND.value:
@@ -240,6 +267,8 @@ def install_instance(
 
     finally:
         gen.close()
+
+    
         
         
 
