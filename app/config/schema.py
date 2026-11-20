@@ -11,8 +11,17 @@ class Config(BaseModel):
 
         allow_offline_account: bool = False
 
+    class System(BaseModel):
+        debug: bool = False
+
+
+
+    system: System = System()
+
 
     accounts: Accounts = Accounts()
+
+    
 
 
 

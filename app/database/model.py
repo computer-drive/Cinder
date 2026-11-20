@@ -28,6 +28,8 @@ class Accounts(BaseModel):
     class Meta:
         table_name = 'accounts'
 
+        
+
 class Files(BaseModel):
     class Meta:
         table_name = "files"
@@ -177,6 +179,20 @@ class MCAssetsObjects(BaseModel):
 
     size = IntegerField()
 
+
+class Java(BaseModel):
+    '''Java运行时信息'''
+    class Meta:
+        table_name = "java"
+
+    path = CharField(primary_key=True)
+
+    major_version = IntegerField()
+
+    version = CharField()
+
+    vendor = CharField()
+
 class Instances(BaseModel):
     class Meta:
         table_name = "instances"
@@ -242,6 +258,7 @@ ALL = [Accounts,
     MCLibraries,
     MCArguments,
     MCAssetsObjects,
+    Java,
 ]
 
 
