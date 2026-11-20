@@ -68,9 +68,13 @@ class Paths:
     def gamedata(self):
         return self.data / "gamedata" # 游戏数据
 
+    @property
+    def logs(self):
+        return self.data / "logs" # 日志目录
+
     def ensure(self):
         '''确保所有路径存在，若不存在则会创建'''
-        for path in [ self.cache, self.libraries, self.assets_logging,
+        for path in [ self.cache, self.libraries, self.assets_logging, self.logs,
                 self.assets, self.mods, self.instances, self.natives, self.gamedata,
                 self.assets_index, self.assets_objects]:
             
