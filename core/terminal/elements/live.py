@@ -84,6 +84,9 @@ class Spinner(LiveElement):
         if text is not None:
             self.text = text
 
+    def stop(self):
+        self.state = SpinnerState.FINISH
+
 
     def update(self) -> None | STOP_SIGNAL:
         Cursor.hide()
