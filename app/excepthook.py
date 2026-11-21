@@ -1,17 +1,11 @@
-import traceback
+import types
 
-from core.terminal.control import Style, Fore
-from .logging import get_logger, get_queue
+from .logging import get_logger
 
-def excepthook(type, value, tb):
+def excepthook(type: type, value: Exception, tb: types.TracebackType):
 
-    print(f"{Fore.red}未捕获的异常：{type.__name__} {value}") 
+    logger = get_logger("Exception")
 
-    print("".join(traceback.format_exception(type, value, tb)) + Style.reset)
-
-    logger = get_logger()
     logger.error(f"未捕获的异常：{type.__name__} {value}")
 
-    logger.error(traceback.format_exception(type, value, tb))
-
-    get_queue().put(None)
+    logger.exception(value, exc_info=(type, value, tb))

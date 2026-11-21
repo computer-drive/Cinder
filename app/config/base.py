@@ -2,7 +2,7 @@ import tomlkit
 from pydantic import ValidationError
 import sys
 
-from core.terminal.console import Console
+from ..logging import get_logger
 from .schema import Config
 from ..paths import paths
 
@@ -19,18 +19,17 @@ def use_config():
                 encoding="utf-8"
             )
 
-        
         document = tomlkit.parse(config_path.read_text(encoding="utf-8"))
     
         try:
             config = Config.model_validate(document.unwrap())
         except ValidationError as e:
-            c = Console.get_instance()
-    
-            c.error("配置文件格式有误！")
-            c.error(str(e))
+            logger = get_logger("Config")
 
-            sys.exit(1)
+            logger.error("配置文件加载失败，格式错误。")
+            logger.exception(e)
+
+            raise e from None
 
         else:
             _config = config

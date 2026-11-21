@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel
 
 class Config(BaseModel):
@@ -14,7 +16,7 @@ class Config(BaseModel):
     class System(BaseModel):
         debug: bool = False
 
-
+        server_port: int = 1231
 
     system: System = System()
 

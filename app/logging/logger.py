@@ -1,100 +1,49 @@
 import logging
 from logging.handlers import RotatingFileHandler
 from queue import Queue
-import threading
 
-lazy import requests
 
-from ..config import use_config
 from ..paths import paths
 
-class SocketHandler(logging.Handler):
-    def __init__(self, queue: Queue[str | None]):
+class QueueHandler(logging.Handler):
+    def __init__(self, queue: Queue[str]):
         super().__init__()
-
         self.queue = queue
 
-        self.start_server()
 
-
-    def start_server(self):
-        server_thread = threading.Thread(target=self.server, args=(self.queue,), daemon=False)
-        server_thread.start()
-
-    def server(self, queue: Queue[str | None]):
-            is_stop = False
-            while True:
-
-                logs = []
-                while True:
-                    log = queue.get()
-
-                    if log is None:
-                        is_stop = True
-                        break
-                    
-                    logs.append(log)
-
-                    if queue.empty():
-                        break
-
-                try:
-                    requests.post("http://localhost:9000/logs",
-                        timeout=2,
-                        json={"logs": logs}
-                        )
-                except:
-                    pass
-
-                if is_stop:
-                    break
-
-
-
-    def emit(self, record: logging.LogRecord):
+    def emit(self, record):
         self.queue.put(self.format(record))
 
 
-    def close(self):
-        self.queue.put(None)
+def get_logger(name: str, queue: Queue[str] | None = None):
 
 
-_queue: Queue[str | None] = Queue[str | None]()
-_logger : logging.Logger | None = None
+    logger = logging.getLogger(name)
 
+    logger.setLevel(logging.INFO)
 
-def get_logger():
-    global _logger, _queue
+    
+    formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
 
-    if _logger is None:
- 
+    file_handler = RotatingFileHandler(
+        filename=paths.logs / "logs.log",
+        maxBytes=1024 * 1024 * 10, # 最大10MB
+        backupCount=5, # 最多保留5个备份文件
+    )
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
 
-        logger = logging.getLogger("cinder")
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
 
-        logger.setLevel(logging.INFO)
+    if queue is not None:
+        queue_handler = QueueHandler(queue)
+        queue_handler.setFormatter(formatter)
+        logger.addHandler(queue_handler)
 
-        
-
-        formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
-
-        if use_config().system.debug:
-            socket_handler = SocketHandler(_queue)
-            socket_handler.setFormatter(formatter)
-            logger.addHandler(socket_handler)
-
-        
-        file_handler = RotatingFileHandler(
-            filename=paths.logs / "logs.log",
-            maxBytes=1024 * 1024 * 10, # 最大10MB
-            backupCount=5, # 最多保留5个备份文件
-        )
-        file_handler.setFormatter(formatter)
-        logger.addHandler(file_handler)
-
-        _logger = logger
+    _logger = logger
 
     return _logger
 
 
-def get_queue():
-    return _queue
