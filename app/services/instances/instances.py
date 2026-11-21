@@ -22,6 +22,7 @@ from ...database.model import (MCLibraries, LibrariesReference, AssetsReference,
 from ..base import Task, StepFinished, StepUpdate, TaskError
 from .schema import VersionManifestV2, AssetsObjects, match_rules, _Context, Rule
 from .downloader import Downloader, DownloadMessage
+from .launch import LaunchTask
 
 VERSION_MANIFEST_URL = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json"
 
@@ -834,3 +835,5 @@ class InstancesService:
         self.fetch_version_manifest = UpdateVersionManifest
 
         self.install_instance = InstallInstance
+
+        self.launch_instance = LaunchTask

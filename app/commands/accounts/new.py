@@ -195,7 +195,7 @@ def refresh_account(
         console.error("用户取消了刷新。")
 
     except StopIteration as e:
-        if e.value:
+        if e.value[0]:
             console.success(f"账户 {account_name} 已刷新。")
         else:
             console.warning(f"账户 {account_name} 的令牌均有效。")

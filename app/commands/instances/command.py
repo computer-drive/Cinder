@@ -127,6 +127,7 @@ def install_instance(
     version: Annotated[str, Argument("-v", "--version", help="要安装的版本")],
     update: Annotated[bool, Argument("-u", "--update", help="是否先更新版本索引", optional=(True, False))]
 ):
+
     console = Console.get_instance()
 
     service = InstancesService()
@@ -268,7 +269,42 @@ def install_instance(
     finally:
         gen.close()
 
-    
+@instances.command("launch", "启动实例")
+def launch_instance(
+    instance_name: Annotated[str, Argument("-n", "--name", help="实例名称")],
+):
+
+    console = Console.get_instance()
+
+
+    task = InstancesService().launch_instance(instance_name)
+
+    gen = task.run()
+
+    try:
+        while True:
+            event = next(gen)
+
+
+    except TaskError as e:
+        
+        match e.message:
+            case task.State.VERSION_NOT_FOUND:
+                console.error(f"版本 {instance_name} 不存在。")
+
+            case task.State.JAVA_VERSION_UNSET:
+                console.error("Java运行时未设置。请使用 instances set-java 设置Java运行时。")
+
+            case task.State.ACCOUNT_UNSET:
+                console.error("账号未设置。请使用 instances set-account 设置账号。")
+
+    except StopIteration as e:
+        print(e.value)
+         
+
+
+
+
         
         
 

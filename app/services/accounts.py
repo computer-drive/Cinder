@@ -90,7 +90,7 @@ REFRESH_URL = "https://login.microsoftonline.com/consumers/oauth2/v2.0/token"
 #endregion
 
 
-class RefreshAccount(Task):
+class RefreshAccount(Task[tuple[bool, Accounts]]):
     
     class State(Enum):
         ACCOUNT_NOT_FOUND = auto()
@@ -195,8 +195,8 @@ class RefreshAccount(Task):
 
         return mc_result.access_token, mc_result.expires_at
 
-    def run(self):
-        yield None
+    def run(self) -> Generator[StepUpdate, None, tuple[bool, Accounts]]:
+        yield StepUpdate("FUCK!")
         
         account = Accounts.get_or_none(Accounts.id == self.account_name)
         
@@ -237,9 +237,10 @@ class RefreshAccount(Task):
             is_refreshed = True
 
         if is_refreshed:
-            return True
+            return True, account
         else:
-            return False
+            # 这里的意思是没刷新任何东西
+            return False, account
 
 
 class New(Task):

@@ -207,6 +207,10 @@ class Instances(BaseModel):
 
     default_account = ForeignKeyField(Accounts, backref="+", null=True, on_delete='SET NULL')
 
+    default_java = ForeignKeyField(Java, backref="+", null=True, on_delete='SET NULL')
+
+    
+
     startup_count = IntegerField(default=0) # 启动次数
 
 
