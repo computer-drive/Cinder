@@ -11,6 +11,11 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    ElButton: typeof import('element-plus/es')['ElButton']
+    ElButtonty: typeof import('element-plus/es')['ElButtonty']
+    ElCar: typeof import('element-plus/es')['ElCar']
+    ElCard: typeof import('element-plus/es')['ElCard']
+    ElDivider: typeof import('element-plus/es')['ElDivider']
     ElMenu: typeof import('element-plus/es')['ElMenu']
     ElMenuItem: typeof import('element-plus/es')['ElMenuItem']
     ElSubMenu: typeof import('element-plus/es')['ElSubMenu']

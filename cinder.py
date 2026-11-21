@@ -36,7 +36,9 @@ paths = Paths.get_paths()
 
 
 def run_server(as_service:bool = False):
-    logger = get_logger("Server")
+    queue = Queue[str]()
+    logger = get_logger("Server", queue)
+    
     try:
         lock = portalocker.Lock(paths.lock, mode="a", timeout=0)
 
@@ -57,8 +59,7 @@ def run_server(as_service:bool = False):
         return
 
     try:
-        queue = Queue[str]()
-        logger = get_logger("Server", queue)
+        
 
         port = use_config().system.server_port
 

@@ -6,12 +6,20 @@ import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 
 
 export default defineConfig({
-  plugins: [vue(),
-    AutoImport({
-      resolvers: [ElementPlusResolver()],
-    }),
-    Components({
-      resolvers: [ElementPlusResolver()],
-    }),
-  ],
+	plugins: [vue(),
+		AutoImport({
+			resolvers: [ElementPlusResolver()],
+		}),
+		Components({
+			resolvers: [ElementPlusResolver()],
+		}),
+	],
+	server: {
+		port: 5173,
+		proxy: {
+		'/api': {
+			target: 'http://localhost:1231', // 目标后端服务地址
+      }
+    }
+	}
 })

@@ -37,17 +37,17 @@ const router = useRouter()
 
 <style scoped>
 .container {
-    width: 100dvh;
+    width: 100dvw;
     height: 100dvh;
     display: flex;
-    gap: 20px;
+    gap: 10px;
     overflow: hidden;
 }
 
 .aside {
     box-sizing: border-box;
     height: 100dvh;
-    min-width: 25%;
+    min-width: 15%;
 }
 
 .aside__title {
@@ -66,6 +66,7 @@ const router = useRouter()
 
 .main {
     flex: 1;
-    padding: 20px
+    padding: 20px;
 }
+
 </style>
