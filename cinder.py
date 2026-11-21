@@ -4,7 +4,6 @@ import webbrowser
 import subprocess
 import os
 from queue import Queue, Empty
-import signal
 from threading import Thread
 
 import portalocker
@@ -68,7 +67,8 @@ def run_server(as_service:bool = False):
         if as_service:
             print("-XStarted", flush=True)
         else:
-            webbrowser.open(f"http://localhost:{port}")
+            if use_config().system.auto_start_web_browser:
+                webbrowser.open(f"http://localhost:{port}")
 
         
         server = create_server(app, host="0.0.0.0", port=port)

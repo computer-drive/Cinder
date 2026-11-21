@@ -8,5 +8,16 @@
 // biome-ignore lint: disable
 export {}
 declare global {
-
+  const ElB: typeof import('element-plus/es').ElB
+  const ElButton: typeof import('element-plus/es').ElButton
+  const ElM: typeof import('element-plus/es').ElM
+  const ElMe: typeof import('element-plus/es').ElMe
+  const ElMes: typeof import('element-plus/es').ElMes
+  const ElMess: typeof import('element-plus/es').ElMess
+  const ElMessa: typeof import('element-plus/es').ElMessa
+  const ElMessag: typeof import('element-plus/es').ElMessag
+  const ElMessageB: typeof import('element-plus/es').ElMessageB
+  const ElN: typeof import('element-plus/es').ElN
+  const ElNo: typeof import('element-plus/es').ElNo
+  const ElNotification: typeof import('element-plus/es').ElNotification
 }

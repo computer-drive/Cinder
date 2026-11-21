@@ -8,6 +8,7 @@ class Config(BaseModel):
 
         class Override(BaseModel):
             ms_client_id: str = ""
+            ms_redirect_uri: str = ""
 
         override: Override = Override()
 
@@ -17,6 +18,8 @@ class Config(BaseModel):
         debug: bool = False
 
         server_port: int = 1231
+
+        auto_start_web_browser: bool = True # 在启动服务器后自动打开浏览器
 
     system: System = System()
 

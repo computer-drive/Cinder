@@ -25,6 +25,7 @@ class Accounts(BaseModel):
     mc_access_token = CharField() # 游戏凭证
     mc_expires_at = DateTimeField() # 游戏凭证过期时间
 
+
     class Meta:
         table_name = 'accounts'
 

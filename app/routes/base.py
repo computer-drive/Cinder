@@ -1,5 +1,6 @@
 from typing import Callable, Any
 from enum import IntEnum
+from functools import wraps
 
 from flask import Blueprint, jsonify, request
 from pydantic import BaseModel
@@ -9,7 +10,7 @@ from pydantic import BaseModel
 class Response[T: IntEnum | int](BaseModel):
     status: T
     message: str = ""
-    data: dict[str, Any]
+    data: dict[str, Any] = {}
 
 class EmptyModel(BaseModel):
     pass
@@ -23,10 +24,11 @@ class CinderBlueprint(Blueprint):
         
 
         def wrapper(f: Callable[[T], Response[T_]]):
-        
+            
             @self.route(path, methods=["POST"])
+            @wraps(f)
             def _wrapper():
-                return jsonify(f(params_type(**request.json())).model_dump())
+                return jsonify(f(params_type(**request.get_json())).model_dump())
 
 
         return wrapper
